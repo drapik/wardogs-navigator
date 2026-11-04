@@ -109,7 +109,7 @@ def test_fatal_error_clears_old_fix_and_frame(window):
     window.worker.capture=True
     window.on_fix(good_fix(window.worker),np.ones((80,80,3),np.uint8),True)
     window.worker.capture=False
-    window.worker_error('Не удалось инициализировать признаки карты','ozeti',0)
+    window.worker_error('Ошибка инициализации признаков карты','ozeti',0)
     assert not window.fix.valid and not window.fix_live and window.frame is None
     assert window.map.player_item is None and '100%' not in window.fix_label.text()
     assert window.capture_button.text()=='Включить позиционирование'
@@ -212,7 +212,7 @@ def test_hud_localization_recovers_without_starting_navigation(window):
     assert window.hud.data['state']=='lost'
     window.on_fix(good_fix(window.worker),frame,True)
     assert not window.navigator.active and window.hud.data['state']=='idle'
-    assert window.hud.localization_text==window.fix_label.text()=='Положение в реальном времени · 100%'
+    assert window.hud.localization_text==window.fix_label.text()=='Позиция в реальном времени · 100%'
 
 
 def test_capture_restart_restores_hud_title_without_navigation(window):
@@ -224,7 +224,7 @@ def test_capture_restart_restores_hud_title_without_navigation(window):
     window.on_fix(good_fix(window.worker),frame,True)
     assert window.fix_live and not window.navigator.active
     assert window.hud.data['text']=='Ожидание'
-    assert window.hud.localization_text==window.fix_label.text()=='Положение в реальном времени · 100%'
+    assert window.hud.localization_text==window.fix_label.text()=='Позиция в реальном времени · 100%'
 
 
 def test_failed_replan_waits_and_resumes_same_return_trip(window,monkeypatch):
@@ -289,7 +289,7 @@ def test_worker_initialization_failure_is_terminal(app,monkeypatch):
     worker.start()
     try:
         until(app,lambda:bool(errors))
-        assert not worker.capture and 'Не удалось инициализировать признаки карты' in errors[0][0]
+        assert not worker.capture and 'Ошибка инициализации признаков карты' in errors[0][0]
     finally:worker.shutdown()
 
 

@@ -966,7 +966,7 @@ class MainWindow(QMainWindow,GameMapController,RecordingController):
             self.snapshot();self.project['start']=[self.fix.x,self.fix.y];self.autosave.start();self.refresh_lists();self.refresh_map()
         anchors=[[self.fix.x,self.fix.y],*self.project['waypoints'],self.project['destination']]
         if not self.plan_route(quiet=True,anchors=anchors):
-            self.set_hud({'state':'offroute','text':'Нет проходимого маршрута'});self.notify(self.route_label.text());return
+            self.set_hud({'state':'offroute','text':'Нет проезжего маршрута'});self.notify(self.route_label.text());return
         self.start_trip_navigation()
         self.update_minimap_overlay()
         self.hud.show();self.notify('Навигация запущена · при потере позиции подсказки ставятся на паузу')

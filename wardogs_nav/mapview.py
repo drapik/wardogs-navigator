@@ -115,7 +115,7 @@ class MapView(QGraphicsView):
                 road=next(r for r in self.project['roads'] if r['id']==road_id)
                 select=menu.addAction('Выбрать дорогу · '+road['name']);select.triggered.connect(lambda:self.road_selected.emit(road_id))
                 edit=menu.addAction('Свойства дороги');edit.triggered.connect(lambda:self.road_edit_requested.emit(road_id))
-                delete=menu.addAction('Удалить всю дорогу');delete.triggered.connect(lambda:self.road_delete_requested.emit(road_id))
+                delete=menu.addAction('Удалить дорогу целиком');delete.triggered.connect(lambda:self.road_delete_requested.emit(road_id))
                 menu.addSeparator()
             if isinstance(item, Handle):
                 key=item.key
