@@ -15,7 +15,7 @@ def pixels(overlay):
 
 def test_bigmap_roads_toggle_persists_and_keeps_route_on_top(window):
     mini(window);view=large(window)
-    window.project.update(roads=[dict(id='network',kind='major',name='道路',points=[[10,120],[390,120]])],
+    window.project.update(roads=[dict(id='network',kind='major',name='Дорога',points=[[10,120],[390,120]])],
                           start=None,destination=None,waypoints=[],avoid=[],notes=[],destinations=[])
     overlay=window.big_overlay;overlay.capture_excluded=False
     overlay.update_map(view,window.project)
@@ -38,27 +38,27 @@ def test_bigmap_roads_toggle_persists_and_keeps_route_on_top(window):
 
 
 def test_recording_replaces_old_status_and_recovers_after_loss(window):
-    mini(window);assert window.hud.data['text']=='待机中'
-    window.stop_navigation();assert window.hud.data['text']=='导航已停止'
+    mini(window);assert window.hud.data['text']=='Ожидание'
+    window.stop_navigation();assert window.hud.data['text']=='Навигация остановлена'
     window.start_recording()
-    assert window.hud.data['text']=='路线记录中' and window.hud.isVisible()
+    assert window.hud.data['text']=='Идёт запись маршрута' and window.hud.isVisible()
     window.expire_hud_notice()  # An earlier completion must never end this operation.
-    assert window.hud.data['text']=='路线记录中'
-    window.invalidate_fix('暂时遮挡')
-    assert window.hud.data['state']=='lost' and window.hud.data['activity']=='路线记录暂停'
+    assert window.hud.data['text']=='Идёт запись маршрута'
+    window.invalidate_fix('Временно закрыто')
+    assert window.hud.data['state']=='lost' and window.hud.data['activity']=='Запись маршрута на паузе'
     window.show_hud();assert window.hud.data['state']=='lost'
-    mini(window);assert window.hud.data['text']=='路线记录中'
+    mini(window);assert window.hud.data['text']=='Идёт запись маршрута'
 
 
 def test_recording_finished_message_expires_with_real_timer(window):
     mini(window);window.start_recording()
     for i,x in enumerate((100,120,140,160)):window.recorder.feed([x,500],float(i),False)
     window.finish_recording()
-    assert window.hud.data['text']=='记录完成' and window.hud_notice_timer.interval()==2000
+    assert window.hud.data['text']=='Запись завершена' and window.hud_notice_timer.interval()==2000
     for _ in range(3):mini(window)
-    assert window.hud.data['text']=='记录完成'  # New fixes must not erase the notice.
+    assert window.hud.data['text']=='Запись завершена'  # New fixes must not erase the notice.
     QTest.qWait(2150)
-    assert not window.hud_notice_timer.isActive() and window.hud.data['text']=='待机中'
+    assert not window.hud_notice_timer.isActive() and window.hud.data['text']=='Ожидание'
 
 
 @pytest.mark.parametrize('mode',['normal','wrc'])
@@ -67,58 +67,58 @@ def test_navigation_and_recording_keep_guidance_and_show_activity(window,mode):
     window.begin_navigation()
     data=window.navigator.update([100,100],time.monotonic(),0)
     window.set_hud(data);window.start_recording()
-    assert window.hud.data['text']==data['text'] and window.hud.data['activity']=='路线记录中'
+    assert window.hud.data['text']==data['text'] and window.hud.data['activity']=='Идёт запись маршрута'
     if mode=='wrc':assert window.hud.data['upcoming']==data['upcoming']
     window.finish_recording()
-    assert window.hud.data['text']==data['text'] and '记录结束' in window.hud.data['notice']
+    assert window.hud.data['text']==data['text'] and 'Запись остановлена' in window.hud.data['notice']
     window.expire_hud_notice()
     assert window.navigator.active and window.hud.data['text']==data['text']
     assert 'activity' not in window.hud.data and 'notice' not in window.hud.data
 
 
 def test_record_completion_does_not_dismiss_persistent_position_loss(window):
-    mini(window);window.start_recording();window.invalidate_fix('持续丢失')
+    mini(window);window.start_recording();window.invalidate_fix('Долгая потеря')
     window.finish_recording()
-    assert window.hud.data['state']=='lost' and '记录结束' in window.hud.data['notice']
+    assert window.hud.data['state']=='lost' and 'Запись остановлена' in window.hud.data['notice']
     window.expire_hud_notice();assert window.hud.data['state']=='lost'
-    mini(window);assert window.hud.data['text']=='待机中'
+    mini(window);assert window.hud.data['text']=='Ожидание'
 
 
 def test_offroad_warning_survives_notices_while_recording(window):
     mini(window);window.project['destination']=[300,100];window.begin_navigation();window.start_recording()
-    window.set_hud({'state':'waiting_road','text':'请返回道路'})
-    window.flash_hud('测试操作完成');window.expire_hud_notice()
-    assert window.hud.data['text']=='请返回道路' and window.hud.data['activity']=='路线记录中'
+    window.set_hud({'state':'waiting_road','text':'Вернитесь на дорогу'})
+    window.flash_hud('Тестовое действие выполнено');window.expire_hud_notice()
+    assert window.hud.data['text']=='Вернитесь на дорогу' and window.hud.data['activity']=='Идёт запись маршрута'
 
 
 def test_new_operation_and_bigmap_are_not_replaced_by_idle_on_timeout(window):
     mini(window);window.stop_navigation();window.start_recording();large(window)
-    assert window.hud.data['text']=='路线记录暂停'
-    window.expire_hud_notice();assert window.hud.data['text']=='路线记录暂停'
-    mini(window);assert window.hud.data['text']=='路线记录中'
+    assert window.hud.data['text']=='Запись маршрута на паузе'
+    window.expire_hud_notice();assert window.hud.data['text']=='Запись маршрута на паузе'
+    mini(window);assert window.hud.data['text']=='Идёт запись маршрута'
 
 
 def test_capture_off_goes_idle_but_waiting_fix_and_paused_recording_persist(window):
-    mini(window);window.toggle_capture();assert window.hud.data['text']=='定位已关闭'
-    window.expire_hud_notice();assert window.hud.data['text']=='待机中'
+    mini(window);window.toggle_capture();assert window.hud.data['text']=='Позиционирование выключено'
+    window.expire_hud_notice();assert window.hud.data['text']=='Ожидание'
     window.toggle_capture();window.expire_hud_notice();assert window.hud.data['state']=='locating'
     mini(window);window.start_recording();window.toggle_capture();window.expire_hud_notice()
-    assert window.hud.data['text']=='路线记录暂停' and not window.worker.capture
+    assert window.hud.data['text']=='Запись маршрута на паузе' and not window.worker.capture
 
 
 def test_map_change_clears_previous_localization_loss(window):
-    mini(window);window.invalidate_fix('旧地图丢失定位')
+    mini(window);window.invalidate_fix('Потеря позиции на старой карте')
     assert window.switch_map('bakurani')
-    assert window.hud.data['text']=='待机中'
+    assert window.hud.data['text']=='Ожидание'
 
 
 def test_arrival_and_clear_return_to_current_state_after_notice(window):
-    mini(window);window.set_hud({'state':'arrived','text':'已到达目的地','remaining':0})
+    mini(window);window.set_hud({'state':'arrived','text':'Вы прибыли','remaining':0})
     assert window.hud.data['state']=='arrived'
     mini(window);assert window.hud.data['state']=='arrived'
-    window.expire_hud_notice();assert window.hud.data['text']=='待机中'
-    window.clear_current_route();assert window.hud.data['text']=='路线已清除'
-    window.expire_hud_notice();assert window.hud.data['text']=='待机中'
+    window.expire_hud_notice();assert window.hud.data['text']=='Ожидание'
+    window.clear_current_route();assert window.hud.data['text']=='Маршрут сброшен'
+    window.expire_hud_notice();assert window.hud.data['text']=='Ожидание'
 
 
 def test_starting_coordinate_navigation_keeps_target_confirmation(window,monkeypatch):
@@ -130,6 +130,6 @@ def test_starting_coordinate_navigation_keeps_target_confirmation(window,monkeyp
     window.coordinate_action.setCurrentIndex(window.coordinate_action.findData('navigate'))
     window.apply_coordinates()
     assert window.pending_start and window.hud.data['state']=='locating'
-    assert window.hud.data['notice']=='目标已设置'
+    assert window.hud.data['notice']=='Цель задана'
     mini(window)
-    assert window.navigator.active and window.hud.data['notice']=='目标已设置'
+    assert window.navigator.active and window.hud.data['notice']=='Цель задана'

@@ -69,7 +69,7 @@ def add_recorded_roads(roads,traces,scale=1.,source='manual'):
             if len(run)>1 and cumulative(run)[-1]>=minimum:
                 points=simplify(run,max(.3,2/scale))
                 for offset in range(0,len(points)-1,1999):
-                    road=dict(id=uid(),name=('自动记录' if source=='auto' else '行驶记录')+' · 越野',
+                    road=dict(id=uid(),name=('Автозапись' if source=='auto' else 'Запись поездки')+' · бездорожье',
                               kind='offroad',confirmed=True,points=points[offset:offset+2000],recording=source)
                     result.append(road);index.add(road);added.append(road['id'])
             run=[]
@@ -150,7 +150,7 @@ class RoadRecorder:
     def _seed_done(self):
         if len(self.seed)>1 and cumulative(self.seed)[-1]>=max(3.,12/self.scale):
             if len(self.state['units'])>=20000:
-                self.error='自动记录候选已满，请清空累计后继续'
+                self.error='Кандидаты автозаписи переполнены. Сбросьте счётчики и продолжите'
             else:
                 unit=dict(id=uid(),points=simplify(self.seed,.25),count=1,added=False)
                 self.state['units'].append(unit);self.unit_index.add(unit)

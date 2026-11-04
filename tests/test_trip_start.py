@@ -25,9 +25,9 @@ def app():
 def window(app,tmp_path,monkeypatch):
     monkeypatch.setenv('WARDOGS_NAV_DATA',str(tmp_path))
     w=MainWindow(start_worker=False);w.settings['voice']=False
-    w.project['roads']=[dict(id='line',name='横路',kind='major',confirmed=True,
+    w.project['roads']=[dict(id='line',name='Поперечная',kind='major',confirmed=True,
                             points=[[100,100],[200,100],[400,100],[600,100],[800,100]]),
-                        dict(id='branch',name='支路',kind='major',confirmed=True,
+                        dict(id='branch',name='Ответвление',kind='major',confirmed=True,
                             points=[[100,100],[100,300]])]
     w.project['destination']=[600,100];w.project['roundtrip']=True;w.project['meters_per_pixel']=1
     w.fix=Fix(x=100,y=100,scale=1,confidence=1,valid=True);w.fix_live=True;w.fix_time=time.monotonic()
@@ -78,8 +78,8 @@ def test_change_destination_mid_outbound_keeps_origin_and_remaining_waypoints(wi
     assert window.project['start']==[100,100] and window.project['destination']==[800,100]
     assert window.route.points[0]==(400,100) and window.route.length==pytest.approx(400)
     assert window.full_route.points[0]==(100,100) and window.full_route.length==pytest.approx(700)
-    assert '返程终点' in window.start_label.text()
-    window.fix=Fix(x=800,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+    assert 'конец обратного пути' in window.start_label.text()
+    window.fix=Fix(x=800,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     assert window.route.points[-1]==(100,100) and window.navigator.active
 
 
@@ -87,7 +87,7 @@ def test_change_destination_mid_outbound_keeps_origin_and_remaining_waypoints(wi
 def test_edit_start_updates_return_endpoint_from_current_position(window,app,returning):
     window.begin_navigation()
     if returning:
-        window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+        window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     window.fix=Fix(x=400,y=100,valid=True)
     window.navigator.progress=200 if returning else 300
     window.move_item(('start',0),[100,300]);app.processEvents()
@@ -96,26 +96,26 @@ def test_edit_start_updates_return_endpoint_from_current_position(window,app,ret
     assert window.route.points[-1]==((100,300) if returning else (600,100))
     assert window.full_route.points[0]==((600,100) if returning else (100,300))
     if not returning:
-        window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+        window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     assert window.route.points[-1]==(100,300) and window.project['destination']==[600,100]
 
 
 def test_change_destination_on_return_preserves_current_return_target(window):
     window.begin_navigation();window.fix=Fix(x=600,y=100,valid=True)
-    window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+    window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     window.fix=Fix(x=400,y=100,valid=True);window.navigator.progress=200
     window.set_tool('destination');window.map_click(800,100)
     assert window.navigator.active and window.navigator.lap==1
     assert window.route.points[0]==(400,100) and window.route.points[-1]==(100,100)
     assert window.full_route.points[0]==(800,100)
-    window.fix=Fix(x=100,y=100,valid=True);window.navigator.lap=2;window.navigator.leg='去程';window.next_leg()
+    window.fix=Fix(x=100,y=100,valid=True);window.navigator.lap=2;window.navigator.leg='путь туда';window.next_leg()
     assert window.route.points[-1]==(800,100)
 
 
 def test_start_persistence_preview_without_fix_and_map_isolation(window,app,tmp_path,monkeypatch):
     window.fix=None;window.fix_live=False;window.set_start([100,300])
     assert window.route.points[0]==(100,300) and window.route.points[-1]==(600,100)
-    path=tmp_path/'起始点配置.json'
+    path=tmp_path/'настройки-старта.json'
     monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a,**k:(str(path),''))
     window.export_project();assert read_project(path)['start']==[100,300]
     window.set_start([200,100])
@@ -145,14 +145,14 @@ def test_old_config_and_invalid_start_validation(window):
 def test_private_favorite_keeps_full_path_when_start_changes(window,app):
     window.project['roads']=[]
     full=Route([[100,100],[100,300],[600,300],[600,100]],['major']*3,['private']*3,900,[0,0],0)
-    saved=saved_route('独立收藏',full,build_roads=False)
+    saved=saved_route('Отдельный маршрут',full,build_roads=False)
     window.project['route_library']=[saved];window.project['active_route_id']=saved['id']
     window.begin_navigation()
     window.fix=Fix(x=300,y=300,valid=True);window.navigator.progress=400
     window.move_item(('start',0),[100,200]);app.processEvents()
     assert window.navigator.active and not window.project['roads']
     assert window.full_route.points[0]==(100,200) and window.route.points[0]==(300,300)
-    window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+    window.fix=Fix(x=600,y=100,valid=True);window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     assert window.route.points[-1]==(100,200) and window.route.length==pytest.approx(800)
     assert window.project['route_library']==[saved] and not window.project['roads']
 
@@ -170,7 +170,7 @@ def test_overlay_shrinks_at_segment_progress_and_resets_on_return(window):
     assert remaining_points(window.route,window.navigator.progress)[0]==pytest.approx((330,100))
     assert window.full_route.points[0]==(100,100)
     window.fix=Fix(x=600,y=100,scale=1,valid=True)
-    window.navigator.lap=1;window.navigator.leg='返程';window.next_leg();window.update_minimap_overlay()
+    window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg();window.update_minimap_overlay()
     assert window.navigator.progress==0 and overlay.points[0]==pytest.approx((200,150))
     assert window.full_route.points[0]==(600,100) and window.route.points[-1]==(100,100)
     window.navigator.update((450,100),now=5)
@@ -183,7 +183,7 @@ def test_overlay_shrinks_at_segment_progress_and_resets_on_return(window):
 def test_stopped_reverse_favorite_preview_keeps_endpoint_direction(window):
     window.project['roads']=[]
     full=Route([[100,100],[100,300],[600,300],[600,100]],['major']*3,['private']*3,900,[0,0],0)
-    saved=saved_route('反向收藏',full,build_roads=False)
+    saved=saved_route('Обратный маршрут',full,build_roads=False)
     window.project['route_library']=[saved];window.refresh_lists();window.favorite_list.setCurrentRow(0)
     window.load_favorite(reverse=True);window.fix=Fix(x=600,y=100,valid=True);window.begin_navigation()
     window.stop_navigation(quiet=True);window.changed()

@@ -71,7 +71,7 @@ class MapView(QGraphicsView):
 
     def load_map(self,map_id):
         pixmap=QPixmap(str(map_asset(map_id,'image')))
-        if pixmap.isNull():raise ValueError('地图底图缺失或无法读取')
+        if pixmap.isNull():raise ValueError('Подложка карты отсутствует или не читается')
         self.pixmap=pixmap
         self.selected_road=None;self.draft=[];self.draft_path=[];self.fix=None;self.route=None;self.full_route=None
         self.danger_start=None;self.press=None;self.set_tool('pan')
@@ -113,18 +113,18 @@ class MapView(QGraphicsView):
             road_id=item.key[1] if isinstance(item,Handle) and item.key[0]=='road' else self.road_at(event.position().toPoint())
             if road_id:
                 road=next(r for r in self.project['roads'] if r['id']==road_id)
-                select=menu.addAction('选中道路 · '+road['name']);select.triggered.connect(lambda:self.road_selected.emit(road_id))
-                edit=menu.addAction('编辑道路属性');edit.triggered.connect(lambda:self.road_edit_requested.emit(road_id))
-                delete=menu.addAction('删除整条道路');delete.triggered.connect(lambda:self.road_delete_requested.emit(road_id))
+                select=menu.addAction('Выбрать дорогу · '+road['name']);select.triggered.connect(lambda:self.road_selected.emit(road_id))
+                edit=menu.addAction('Свойства дороги');edit.triggered.connect(lambda:self.road_edit_requested.emit(road_id))
+                delete=menu.addAction('Удалить дорогу целиком');delete.triggered.connect(lambda:self.road_delete_requested.emit(road_id))
                 menu.addSeparator()
             if isinstance(item, Handle):
                 key=item.key
-                menu.addAction('删除此点 / 标注', lambda:self.remove_requested.emit(key))
-            menu.addAction('在此设置起始点 / 返程终点', lambda:self._context('start',p))
-            menu.addAction('在此设置目的地', lambda:self._context('destination',p))
-            menu.addAction('在此添加途经点', lambda:self._context('waypoint',p))
-            menu.addAction('在此添加路书', lambda:self._context('note',p))
-            menu.addAction('在此添加避让区', lambda:self._context('avoid',p))
+                menu.addAction('Удалить точку / метку', lambda:self.remove_requested.emit(key))
+            menu.addAction('Старт / финиш обратного пути здесь', lambda:self._context('start',p))
+            menu.addAction('Пункт назначения здесь', lambda:self._context('destination',p))
+            menu.addAction('Добавить промежуточную точку', lambda:self._context('waypoint',p))
+            menu.addAction('Добавить заметку стенограммы', lambda:self._context('note',p))
+            menu.addAction('Добавить зону объезда', lambda:self._context('avoid',p))
             menu.exec(event.globalPosition().toPoint())
             return
         super().mousePressEvent(event)
@@ -239,8 +239,8 @@ class MapView(QGraphicsView):
                     for i,p in enumerate(road['points']):
                         self.handle(p,'#f2cf75',('road',road['id'],i))
                     if road.get('bridge'):
-                        for key,index,name in (('bridge_start',0,'桥起点'),('bridge_end',-1,'桥终点')):
-                            self.label(name+(' · 接地' if road.get(key) else ' · 不接地'),road['points'][index],'#f2cf75')
+                        for key,index,name in (('bridge_start',0,'Начало моста'),('bridge_end',-1,'Конец моста')):
+                            self.label(name+(' · съезд на землю' if road.get(key) else ' · без съезда'),road['points'][index],'#f2cf75')
         for i, zone in enumerate(self.project['avoid']):
             x,y=zone['point']
             pen,brush=QPen(QColor('#ed7878'),2),QBrush(QColor(215,70,70,55))
@@ -251,7 +251,7 @@ class MapView(QGraphicsView):
                 r=zone['radius'];item=self.scene().addEllipse(x-r,y-r,2*r,2*r,pen,brush)
             item.setZValue(5)
             self.handle(zone['point'],'#e47878',('avoid',i))
-            self.label('避让',zone['point'],'#ffb0b0')
+            self.label('Объезд',zone['point'],'#ffb0b0')
         if self.full_route:
             self.line(self.full_route.points,QColor(103,237,195,85),5,z=7)
         if self.route:
@@ -267,17 +267,17 @@ class MapView(QGraphicsView):
         start=self.project.get('start')
         if start:
             self.handle(start,'#83baff',('start',0))
-            self.label('起点 / 返程终点' if self.project['roundtrip'] else '起点',start,'#a7ceff')
+            self.label('Старт / финиш обратного пути' if self.project['roundtrip'] else 'Старт',start,'#a7ceff')
         destination=self.project.get('destination')
         if destination:
             self.handle(destination,'#f2cf75',('destination',0))
-            self.label('去程终点' if self.project['roundtrip'] else '终点',destination,'#ffe5a1')
+            self.label('Финиш пути туда' if self.project['roundtrip'] else 'Финиш',destination,'#ffe5a1')
         for i,p in enumerate(self.project['waypoints']):
             self.handle(p,'#57dfbf',('waypoint',i))
             self.label(str(i+1),p,'#adf6e2')
         for i,note in enumerate(self.project['notes']):
             self.handle(note['point'],'#b296e5',('note',i))
-            self.label('路书',note['point'],'#d7c6f4')
+            self.label('Заметка',note['point'],'#d7c6f4')
         if self.draft_path:self.line(self.draft_path,'#76e6c9',4,z=12)
         self.line(self.draft,'#ffffff',1 if self.draft_path else 3,True,13)
         for p in self.draft:

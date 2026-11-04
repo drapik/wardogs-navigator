@@ -77,5 +77,5 @@ def test_numeric_generation_keeps_word_and_pauses_but_excludes_carrier():
 @pytest.mark.parametrize('kwargs', [{'duration': False}, {'invalid_timing': True}])
 def test_numeric_generation_rejects_missing_or_inconsistent_timing(kwargs):
     g2p = {'现在读数': 'P', '一百': 'AB', '读数结束': 'S'}.__getitem__
-    with pytest.raises(ValueError, match='duration|时间边界'):
+    with pytest.raises(ValueError, match='duration|временные границы'):
         numeric_samples(timing_engine(**kwargs), g2p, '一百', 'voice')

@@ -15,7 +15,7 @@ def data(roads=()):
 
 
 def saved(points,kinds=None,**options):
-    return dict(id='favorite',name='精确保留的收藏',points=points,kinds=kinds or ['major']*(len(points)-1),**options)
+    return dict(id='favorite',name='Точно сохранённое избранное',points=points,kinds=kinds or ['major']*(len(points)-1),**options)
 
 
 POLICY=dict(allowed=['major','minor','offroad'],confirmed_only=False)
@@ -40,7 +40,7 @@ def test_snap_obeys_danger_and_does_not_bridge_disconnected_roads():
     matched=snap_saved(roads,saved([[100,105],[300,105]]),POLICY,[zone])
     assert all(not blocked(a,b,zone) for a,b in zip(matched['points'],matched['points'][1:]))
     disconnected=[road('left',[[100,100],[150,100]]),road('right',[[250,100],[300,100]])]
-    with pytest.raises(RouteError,match='不连通'):snap_saved(disconnected,saved([[100,105],[300,105]]),POLICY)
+    with pytest.raises(RouteError,match='не связаны'):snap_saved(disconnected,saved([[100,105],[300,105]]),POLICY)
 
 
 def test_import_no_roads_keeps_private_navigation_reverse_and_hard_constraints(tmp_path):
@@ -55,10 +55,10 @@ def test_import_no_roads_keeps_private_navigation_reverse_and_hard_constraints(t
         assert route.length==pytest.approx(200)
     assert merged==before
     with pytest.raises(RouteError):plan(merged['roads'],[[100,100],[200,200]],POLICY['allowed'])
-    with pytest.raises(RouteError,match='未允许'):follow_saved(merged['roads'],entry,dict(allowed=['minor'],confirmed_only=False))
+    with pytest.raises(RouteError,match='запрещённ'):follow_saved(merged['roads'],entry,dict(allowed=['minor'],confirmed_only=False))
     assert follow_saved(merged['roads'],entry,dict(allowed=POLICY['allowed'],confirmed_only=True)).length==pytest.approx(200)
-    with pytest.raises(RouteError,match='绕行道路'):follow_saved(merged['roads'],entry,POLICY,[dict(shape='rect',point=[100,150],width=20,height=20)])
-    path=tmp_path/'仅收藏路线.json';atomic_json(path,library_payload(merged,'routes'))
+    with pytest.raises(RouteError,match='(?i)объезд'):follow_saved(merged['roads'],entry,POLICY,[dict(shape='rect',point=[100,150],width=20,height=20)])
+    path=tmp_path/'только_избранные_маршруты.json';atomic_json(path,library_payload(merged,'routes'))
     restored,_,added=merge_library(data(),read_project(path),'routes')
     assert restored['route_library']==merged['route_library'] and not restored['roads'] and added==0
 
@@ -76,12 +76,12 @@ def test_import_yes_builds_only_selected_routes_and_preserves_unrelated_private_
 def test_snapped_import_is_atomic_and_export_preserves_guides_notes_and_options(tmp_path):
     current=data([road('road',[[100,100],[100,300],[300,300]])])
     incoming=data();incoming['route_library']=[saved([[110,110],[290,300]])]
-    incoming['notes']=[dict(id='n',point=[100,300],type='square_left',grade=1,direction='both',text='左直角，别切',modifiers=['dont_cut'])]
+    incoming['notes']=[dict(id='n',point=[100,300],type='square_left',grade=1,direction='both',text='левый прямой угол, не срезать',modifiers=['dont_cut'])]
     merged,count,added=merge_library(current,incoming,'routes',snap_to_roads=True)
     assert count==1 and added==0 and merged['roads']==current['roads']
     entry=merged['route_library'][0]
     assert len(entry['points'])>len(incoming['route_library'][0]['points'])
-    path=tmp_path/'贴路收藏.json';atomic_json(path,library_payload(merged,'routes'))
+    path=tmp_path/'избранное_по_дорогам.json';atomic_json(path,library_payload(merged,'routes'))
     exported=read_project(path)
     assert exported['map']=='ozeti' and exported['meters_per_pixel']==5
     assert exported['route_library']==merged['route_library'] and exported['notes']==merged['notes']

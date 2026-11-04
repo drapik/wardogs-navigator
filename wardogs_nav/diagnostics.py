@@ -8,7 +8,7 @@ from pathlib import Path
 from dataclasses import asdict
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer,QPointF
-from .model import asset_path,read_project,atomic_json,validate_project
+from .model import asset_path,read_project,atomic_json,validate_project,NOTE_TYPES
 from .vision import Locator,read_image,Fix,MapViewFix
 from .routing import plan,blocked
 from .navigation import Navigator,cues_for
@@ -72,27 +72,27 @@ def run_selftest(output):
         report['checks']['gui']=True
         window.worker.capture=True;window.on_fix(fix,sample,True)
         window.start_recording()
-        report['checks']['recording_hud_active']=window.hud.data['text']=='路线记录中'
+        report['checks']['recording_hud_active']=window.hud.data['text']=='Идёт запись маршрута'
         window.hud.grab().save(str(output.with_name(output.stem+'-recording-hud.png')))
         window.finish_recording()
-        report['checks']['recording_hud_finished']='记录结束' in window.hud.data['text']
+        report['checks']['recording_hud_finished']='Запись' in window.hud.data['text']
         deadline=time.monotonic()+2.2
         while time.monotonic()<deadline:app.processEvents();time.sleep(.01)
-        report['checks']['hud_notice_returns_to_standby']=window.hud.data['text']=='待机中'
+        report['checks']['hud_notice_returns_to_standby']=window.hud.data['text']=='Ожидание'
         window.worker.capture=True;window.on_fix(fix,sample,True)
         window.fix_time=time.monotonic()-3;window.check_stale()
         report['checks']['stale_fix_clears_ui']=(not window.fix.valid and not window.fix_live
             and window.map.player_item is None and '100%' not in window.fix_label.text())
-        window.on_fix(Fix(reason='合成单帧异常'),ambiguous,True)
+        window.on_fix(Fix(reason='Синтетический сбойный кадр'),ambiguous,True)
         window.on_fix(fix,sample,True)
         report['checks']['hud_localization_recovers_without_navigation']=(window.hud.data['state']!='lost'
-            and window.hud.localization_text==window.fix_label.text() and '实时定位' in window.hud.localization_text)
+            and window.hud.localization_text==window.fix_label.text() and 'реальном времени' in window.hud.localization_text)
         report['checks']['failure_frame_retained_after_recovery']=(window.fix_live
             and np.array_equal(window.failure_diagnostic[0],ambiguous)
             and not window.failure_diagnostic[1]['fix']['valid'])
         window.toggle_capture();window.toggle_capture();window.on_fix(fix,sample,True)
         report['checks']['capture_restart_restores_hud_title']=(window.fix_live
-            and window.hud.data['text']=='待机中' and window.hud.localization_text==window.fix_label.text())
+            and window.hud.data['text']=='Ожидание' and window.hud.localization_text==window.fix_label.text())
         window.worker.capture=False
         window.arrival_radius.setValue(180)
         report['checks']['arrival_radius_control']=window.settings['arrival_m']==180
@@ -105,19 +105,19 @@ def run_selftest(output):
         report['checks']['road_rejoin_replans']=check_nav.update([100,5],1,5)['replan']
         check_nav.update([500,60],2,60)
         report['checks']['arrival_uses_actual_offroad_goal']=check_nav.update([500,60],3,60)['state']=='turnaround'
-        window.store_favorite(saved_route('打包验收路线',route));window.favorite_list.setCurrentRow(0);window.load_favorite()
+        window.store_favorite(saved_route('Маршрут проверки сборки',route));window.favorite_list.setCurrentRow(0);window.load_favorite()
         report['checks']['exact_favorite']=abs(window.route.length-route.length)<.1
         payload=library_payload(window.project,'routes');portable=output.with_name(output.stem+'-routes.json')
         atomic_json(portable,payload)
         restored,count,_=merge_library(p,read_project(portable),'routes')
         report['checks']['favorite_import_export']=count==1 and restored['route_library'][0]['points']==[list(q) for q in route.points]
-        roads=[];custom=dict(id='custom',name='自绘野地',points=[[100,100],[200,100],[200,200]],kinds=['minor','offroad'])
+        roads=[];custom=dict(id='custom',name='Нарисованное бездорожье',points=[[100,100],[200,100],[200,200]],kinds=['minor','offroad'])
         first=supplement_roads(roads,custom);second=supplement_roads(roads,custom)
         report['checks']['missing_roads_added_once']=first==2 and second==0 and {r['kind'] for r in roads}=={'minor','offroad'}
-        simple=[dict(id='line',name='道路',points=[[100,100],[200,100],[200,200]],kind='major',confirmed=True)]
+        simple=[dict(id='line',name='Дорога',points=[[100,100],[200,100],[200,200]],kind='major',confirmed=True)]
         bend=plan(simple,[[100,100],[200,200]],['major'])
         report['checks']['normal_bend_is_silent']=[c.kind for c in cues_for(bend,[],'normal')]==['arrival']
-        simple.append(dict(id='branch',name='岔路',points=[[200,100],[300,100]],kind='major',confirmed=True))
+        simple.append(dict(id='branch',name='Ответвление',points=[[200,100],[300,100]],kind='major',confirmed=True))
         junction=plan(simple,[[100,100],[200,200]],['major'])
         report['checks']['normal_junction_cue']=cues_for(junction,[],'normal')[0].kind=='right'
         consecutive=Route([[0,0],[800,0]],['major'],['fixture'],800,[0,0],0,[dict(at=200,delta=0),dict(at=300,delta=90)])
@@ -125,11 +125,11 @@ def run_selftest(output):
         check_nav.start(consecutive,[],normal_settings,1)
         report['normal_speech']=check_nav.update([100,0],0)['speech']
         check_nav.update([160,0],1)
-        report['checks']['normal_individual_junctions']=(report['normal_speech']=='前方100米，路口直行' and check_nav.update([220,0],2)['speech']=='前方80米，路口右转')
+        report['checks']['normal_individual_junctions']=(report['normal_speech']=='Через 100 метров прямо' and check_nav.update([220,0],2)['speech']=='Через 80 метров поверните направо')
         check_nav.start(consecutive,[],normal_settings,1)
         check_nav.update([500,0],0);check_nav.update([490,0],1)
         wrongway=check_nav.update([480,0],2)
-        report['checks']['wrong_way_alert']=wrongway['state']=='wrongway' and '掉头' in wrongway['speech']
+        report['checks']['wrong_way_alert']=wrongway['state']=='wrongway' and 'Развернитесь' in wrongway['speech']
         window.hud.set_data(wrongway);window.hud.show();app.processEvents()
         window.hud.grab().save(str(output.with_name(output.stem+'-wrongway.png')))
         window.hud.hide()
@@ -138,8 +138,8 @@ def run_selftest(output):
         report['checks']['soft_road_connectors']=soft.length==100 and set(soft.kinds)=={'major','minor','offroad'}
         window.navigation_fields['lead_m'].setValue(150)
         report['checks']['normal_settings_controls']=window.settings['lead_m']==150 and 'normal_chain_count' not in window.navigation_fields
-        deck=dict(id='deck',name='桥梁',kind='major',bridge=True,points=[[100,300],[300,300],[500,300]])
-        ground=dict(id='ground',name='辅路',kind='major',points=[[300,100],[300,300],[300,500]])
+        deck=dict(id='deck',name='Мост',kind='major',bridge=True,points=[[100,300],[300,300],[500,300]])
+        ground=dict(id='ground',name='Дублёр',kind='major',points=[[300,100],[300,300],[300,500]])
         from .routing import RouteError
         try:plan([deck,ground],[[100,300],[300,500]],['major']);separated=False
         except RouteError:separated=True
@@ -154,9 +154,7 @@ def run_selftest(output):
         recorded,count=add_recorded_roads([ground],[[[100,300],[500,300]]])
         report['checks']['recorded_crossing_split']=(count==2 and plan(recorded,[[100,300],[300,500]],['major','offroad']).length==400)
         crossing=plan(recorded,[[100,300],[500,300]],['major','offroad'])
-        report['checks']['offroad_crossing_prompt']=any('进入越野路段' in cue_text(c,'normal') for c in cues_for(crossing,[],'normal'))
-        from wardogs_audio.pack import DefaultVoicePack
-        report['checks']['offroad_local_audio']=bool(DefaultVoicePack().segments('前方100米，左转进入越野路段'))
+        report['checks']['offroad_crossing_prompt']=any('съезд на бездорожье' in cue_text(c,'normal').lower() for c in cues_for(crossing,[],'normal'))
         recorder=RoadRecorder()
         for pass_index,xs in enumerate((range(10,121,5),range(120,9,-5),range(10,121,5))):
             for i,x in enumerate(xs):recorder.feed([x,100],pass_index*100+i*.5,True)
@@ -167,7 +165,7 @@ def run_selftest(output):
         spin=window.record_minimum;before=spin.value();spin.setFocus();pos=spin.rect().center()
         app.sendEvent(spin,QWheelEvent(QPointF(pos),QPointF(spin.mapToGlobal(pos)),QPoint(),QPoint(0,-120),Qt.NoButton,Qt.NoModifier,Qt.NoScrollPhase,False))
         report['checks']['settings_wheel_keeps_value']=spin.value()==before
-        window.tabs.setCurrentIndex(next(i for i in range(window.tabs.count()) if window.tabs.tabText(i)=='地图标注'))
+        window.tabs.setCurrentIndex(next(i for i in range(window.tabs.count()) if window.tabs.tabText(i)=='Разметка карты'))
         window.tabs.currentWidget().ensureWidgetVisible(window.record_start)
         window.start_recording();window.recorder.feed([100,300],0);window.recorder.feed([110,300],1)
         window.update_recording_status();app.processEvents()
@@ -182,12 +180,12 @@ def run_selftest(output):
         nav=Navigator();nav.start(junction,notes,wrc_settings,1.)
         data=nav.update([100,100],0)
         report['wrc_speech']=data['speech']
-        report['checks']['wrc_roadbook']='左三' in data['speech'] and '急刹车' in data['speech'] and '右直角' in data['speech']
+        report['checks']['wrc_roadbook']='лево 3' in data['speech'] and NOTE_TYPES['hard_brake'] in data['speech'] and NOTE_TYPES['square_right'] in data['speech']
         # Check the same route-option implementation in the frozen executable.
-        sketch=dict(id='coarse',name='粗绘贴路验收',points=[[105,105],[195,195]],kinds=['major'])
+        sketch=dict(id='coarse',name='Проверка привязки эскиза',points=[[105,105],[195,195]],kinds=['major'])
         matched=snap_saved(simple[:1],sketch,dict(allowed=['major'],confirmed_only=False))
         report['checks']['coarse_route_follows_road']=[200,100] in matched['points'] and not matched['build_roads']
-        private=dict(id='private',name='不建路验收',points=[[20,20],[120,20],[120,120]],kinds=['minor','offroad'],snap_to_roads=False,build_roads=False)
+        private=dict(id='private',name='Проверка без постройки дорог',points=[[20,20],[120,20],[120,120]],kinds=['minor','offroad'],snap_to_roads=False,build_roads=False)
         public=[];private_route=follow_saved(public,private,dict(allowed=['minor','offroad'],confirmed_only=False))
         report['checks']['private_favorite_without_public_roads']=abs(private_route.length-200)<.01 and not public
         portable_options=dict(p,route_library=[matched,private],active_route_id=None)
@@ -238,9 +236,7 @@ def run_selftest(output):
       try:
         if window:
             report['voices']=[v['name'] for v in window.voices]
-            from wardogs_audio.pack import DefaultVoicePack
-            report['checks']['default_voice_pack_available']=bool(DefaultVoicePack().segments('前方100米，路口右转'))
-            window.hud.set_data({'state':'navigating','text':'前方右转','distance':120,'remaining':2800},'normal')
+            window.hud.set_data({'state':'navigating','text':'Поверните направо','distance':120,'remaining':2800},'normal')
             window.hud.show();app.processEvents()
             window.hud.grab().save(str(output.with_name(output.stem+'-hud.png')))
             window.settings['hud']['locked']=True;window.hud.apply_settings()
@@ -251,7 +247,7 @@ def run_selftest(output):
             window.project['start']=None
             window.begin_navigation()
             report['checks']['automatic_start_visible']=(window.project['start']==[window.fix.x,window.fix.y]
-                and '返程终点' in window.start_label.text() and window.full_route is not None)
+                and 'обратного пути' in window.start_label.text() and window.full_route is not None)
             window.update_minimap_overlay();app.processEvents()
             report['checks']['minimap_path_visible']=window.minimap_overlay.isVisible()
             report['checks']['path_capture_mask']=bool(window.worker.path_mask)
@@ -311,10 +307,10 @@ def run_selftest(output):
             report['hotkey_status']=statuses
             window.grab().save(str(output.with_name(output.stem+'-cleared.png')))
             window.navigator.stop();window.watchdog.stop()
-            # Use the shared queue and real player with bundled audio, including
-            # on machines where Windows speech is absent. Output remains muted.
+            # Use the shared queue and real player with the configured voice
+            # (SpeechKit when a key is set, otherwise Windows). Output remains muted.
             window.tts.stop();window.settings['voice']=True
-            window.settings['voice_backend']='local';window.settings['voice_rate']=.5
+            window.settings['voice_backend']='auto';window.settings['voice_rate']=.5
             window.tts.volume=0
             report['queue_started']=[];report['checks']['native_speech_queue']=False
             def started(id):report['queue_started'].append(id)
@@ -322,7 +318,7 @@ def run_selftest(output):
                 if len(report['queue_started'])>=2 and window.tts.current is None and not window.tts.queue:
                     report['checks']['native_speech_queue']=True;QTimer.singleShot(0,finish_report)
             window.tts.started.connect(started);window.tts.completed.connect(completed)
-            window.speak('前方250米，路口直行。');window.speak('一百米，左三，接右六。')
+            window.speak('Через 250 метров прямо.');window.speak('100 метров, лево 3, сразу право 6.')
             QTimer.singleShot(20000,finish_report)
         else:finish_report()
       except Exception as error:

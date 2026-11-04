@@ -3,6 +3,7 @@ from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QPen
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QFormLayout,QLineEdit,QComboBox,QCheckBox,
     QDialogButtonBox,QDoubleSpinBox,QSpinBox,QLabel,QWidget,QPushButton,QHBoxLayout)
 from .model import KINDS, NOTE_TYPES, MODIFIERS
+from .ru import count
 from .navigation import Cue, cue_text
 
 
@@ -18,55 +19,55 @@ def number(value, low, high, decimals=0):
 class RoadDialog(QDialog):
     def __init__(self, road, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('道路属性');self.setMinimumWidth(440)
+        self.setWindowTitle('Свойства дороги');self.setMinimumWidth(440)
         layout=QVBoxLayout(self);form=QFormLayout()
-        self.name=QLineEdit(road.get('name','新道路'))
+        self.name=QLineEdit(road.get('name','Новая дорога'))
         self.kind=QComboBox()
         for value,label in KINDS.items():self.kind.addItem(label,value)
         self.kind.setCurrentIndex(self.kind.findData(road.get('kind','minor')))
         self.note=QLineEdit(road.get('note',''))
-        form.addRow('名称',self.name);form.addRow('分类',self.kind);form.addRow('备注',self.note)
+        form.addRow('Название',self.name);form.addRow('Класс',self.kind);form.addRow('Заметка',self.note)
         layout.addLayout(form)
-        self.bridge=QCheckBox('桥梁（与地面道路分层）');self.bridge.setChecked(road.get('bridge',False));layout.addWidget(self.bridge)
-        self.bridge_start=QCheckBox('起点接地（真实桥头 / 匝道）');self.bridge_start.setChecked(road.get('bridge_start',False));layout.addWidget(self.bridge_start)
-        self.bridge_end=QCheckBox('终点接地（真实桥头 / 匝道）');self.bridge_end.setChecked(road.get('bridge_end',False));layout.addWidget(self.bridge_end)
+        self.bridge=QCheckBox('Мост (отдельный уровень от наземных дорог)');self.bridge.setChecked(road.get('bridge',False));layout.addWidget(self.bridge)
+        self.bridge_start=QCheckBox('Начало на земле (реальный въезд на мост / съезд)');self.bridge_start.setChecked(road.get('bridge_start',False));layout.addWidget(self.bridge_start)
+        self.bridge_end=QCheckBox('Конец на земле (реальный въезд на мост / съезд)');self.bridge_end.setChecked(road.get('bridge_end',False));layout.addWidget(self.bridge_end)
         points=road.get('points',[])
         if points:
-            label=QLabel(f'道路起点 ({points[0][0]:.1f}, {points[0][1]:.1f}) → 终点 ({points[-1][0]:.1f}, {points[-1][1]:.1f})');label.setWordWrap(True);layout.addWidget(label)
+            label=QLabel(f'Начало дороги ({points[0][0]:.1f}, {points[0][1]:.1f}) → конец ({points[-1][0]:.1f}, {points[-1][1]:.1f})');label.setWordWrap(True);layout.addWidget(label)
         def bridge_options(value):
             self.bridge_start.setEnabled(value);self.bridge_end.setEnabled(value)
         self.bridge.toggled.connect(bridge_options);bridge_options(self.bridge.isChecked())
-        label=QLabel('桥面交叉处不与地面连通。只在真实桥头勾选接地；桥梁分成多条道路时，中间相接的端点不要勾选。道路类型仍遵循偏好，危险区禁止通行。');label.setWordWrap(True);layout.addWidget(label)
+        label=QLabel('В местах пересечения мост не соединяется с землёй. Отмечайте «на земле» только у реальных въездов на мост; если мост разбит на несколько дорог, промежуточные стыки не отмечайте. Класс дороги по-прежнему учитывает предпочтения, через опасные зоны проезда нет.');label.setWordWrap(True);layout.addWidget(label)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
 
     def values(self):
-        return dict(name=self.name.text().strip() or '未命名道路',kind=self.kind.currentData(),confirmed=True,note=self.note.text(),
+        return dict(name=self.name.text().strip() or 'Дорога без названия',kind=self.kind.currentData(),confirmed=True,note=self.note.text(),
                     bridge=self.bridge.isChecked(),bridge_start=self.bridge.isChecked() and self.bridge_start.isChecked(),
                     bridge_end=self.bridge.isChecked() and self.bridge_end.isChecked())
 
 
 class FavoriteImportDialog(QDialog):
     def __init__(self,routes,parent=None):
-        super().__init__(parent);self.setWindowTitle('导入路线收藏');self.setMinimumWidth(470)
+        super().__init__(parent);self.setWindowTitle('Импорт избранных маршрутов');self.setMinimumWidth(470)
         layout=QVBoxLayout(self)
-        label=QLabel(f'将合并 {len(routes)} 条收藏。原有收藏、目的地和危险区保留。');label.setWordWrap(True);layout.addWidget(label)
-        self.snap=QCheckBox('贴合现有道路（重新计算路线）');layout.addWidget(self.snap)
-        description=QLabel('开启后，粗绘点之间沿当前路网规划，遵守道路规则和危险区；失败则不导入。关闭则保留文件中的完整路径。')
+        label=QLabel(f'Будет добавлено: {count(len(routes),"маршрут","маршрута","маршрутов")}. Текущее избранное, цели и опасные зоны сохранятся.');label.setWordWrap(True);layout.addWidget(label)
+        self.snap=QCheckBox('Привязать к существующим дорогам (пересчитать маршрут)');layout.addWidget(self.snap)
+        description=QLabel('Если включено, между опорными точками маршрут прокладывается по текущей сети дорог с учётом правил и опасных зон; при ошибке импорт не выполняется. Если выключено, сохраняется полный путь из файла.')
         description.setWordWrap(True);layout.addWidget(description)
         self.road_action=QComboBox()
-        self.road_action.addItem('请确认是否按路线建立道路…','choose')
-        self.road_action.addItem('是：将缺失路段补入公共路网',True)
-        self.road_action.addItem('否：仅供收藏导航，不加入公共路网',False)
+        self.road_action.addItem('Выберите, создавать ли дороги по маршруту…','choose')
+        self.road_action.addItem('Да: добавить недостающие участки в общую сеть дорог',True)
+        self.road_action.addItem('Нет: только для навигации по избранному, без добавления в общую сеть',False)
         if routes and all('build_roads' in saved for saved in routes):
             builds=sum(saved['build_roads'] for saved in routes)
-            self.road_action.addItem(f'沿用文件设置（{builds} 条建路，{len(routes)-builds} 条仅收藏）','stored')
+            self.road_action.addItem(f'Как в файле (с дорогами: {builds}, только избранное: {len(routes)-builds})','stored')
             self.road_action.setCurrentIndex(3)
-        layout.addWidget(QLabel('不贴合时，是否按照路线建立道路？'));layout.addWidget(self.road_action)
-        note=QLabel('不建立道路也可按原路线导航；缺路仅在该收藏行程中使用，仍受道路分类和危险区约束。建立的道路可直接用于规划，本次导入可撤销。')
+        layout.addWidget(QLabel('Без привязки: создавать ли дороги по маршруту?'));layout.addWidget(self.road_action)
+        note=QLabel('Без создания дорог по исходному маршруту тоже можно ехать: недостающие участки используются только в этой поездке по избранному и всё равно подчиняются классам дорог и опасным зонам. Созданные дороги сразу доступны для планирования; импорт можно отменить.')
         note.setWordWrap(True);layout.addWidget(note)
         self.buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
-        self.buttons.button(QDialogButtonBox.Ok).setText('确认导入')
-        self.buttons.button(QDialogButtonBox.Cancel).setText('取消')
+        self.buttons.button(QDialogButtonBox.Ok).setText('Импортировать')
+        self.buttons.button(QDialogButtonBox.Cancel).setText('Отмена')
         self.buttons.accepted.connect(self.accept);self.buttons.rejected.connect(self.reject);layout.addWidget(self.buttons)
         self.snap.toggled.connect(self.update_options);self.road_action.currentIndexChanged.connect(self.update_options);self.update_options()
 
@@ -82,22 +83,22 @@ class FavoriteImportDialog(QDialog):
 class NoteDialog(QDialog):
     def __init__(self,note=None,parent=None):
         super().__init__(parent)
-        self.setWindowTitle('WRC 路书标注');self.setMinimumWidth(470)
+        self.setWindowTitle('Отметка стенограммы WRC');self.setMinimumWidth(470)
         note=note or {};layout=QVBoxLayout(self);form=QFormLayout()
         self.kind=QComboBox()
         for value,label in NOTE_TYPES.items():self.kind.addItem(label,value)
         self.kind.setCurrentIndex(max(0,self.kind.findData(note.get('type','left'))))
         self.grade=number(note.get('grade',4),1,6)
         self.direction=QComboBox()
-        for label,value in [('双向（反向自动交换左右）','both'),('仅正向','forward'),('仅反向','reverse')]:self.direction.addItem(label,value)
+        for label,value in [('Оба направления (в обратном лево/право меняются)','both'),('Только прямое','forward'),('Только обратное','reverse')]:self.direction.addItem(label,value)
         self.direction.setCurrentIndex(max(0,self.direction.findData(note.get('direction','both'))))
         self.bearing=number(note.get('bearing',0),0,359)
         self.lead=number(note.get('lead_m',0),0,2000)
-        self.text=QLineEdit(note.get('text',''));self.text.setPlaceholderText('留空使用“左4”等标准播报')
-        self.reverse=QLineEdit(note.get('reverse_text',''));self.reverse.setPlaceholderText('反向专用文字；留空按类型自动播报')
-        form.addRow('类型',self.kind);form.addRow('弯级（1 慢 / 6 快）',self.grade);form.addRow('适用方向',self.direction)
-        form.addRow('正向驶入方位（北0 / 东90）',self.bearing);form.addRow('提前距离（米；0用全局）',self.lead)
-        form.addRow('正向播报文字',self.text);form.addRow('反向播报文字',self.reverse);layout.addLayout(form)
+        self.text=QLineEdit(note.get('text',''));self.text.setPlaceholderText('Пусто — стандартная подсказка вроде «Левый 4»')
+        self.reverse=QLineEdit(note.get('reverse_text',''));self.reverse.setPlaceholderText('Текст для обратного направления; пусто — автоматически по типу')
+        form.addRow('Тип',self.kind);form.addRow('Степень поворота (1 медленный / 6 быстрый)',self.grade);form.addRow('Направление',self.direction)
+        form.addRow('Курс въезда в прямом направлении (север 0 / восток 90)',self.bearing);form.addRow('Упреждение (м; 0 — общее значение)',self.lead)
+        form.addRow('Текст в прямом направлении',self.text);form.addRow('Текст в обратном направлении',self.reverse);layout.addLayout(form)
         self.modifiers={}
         modifier_row=QHBoxLayout()
         for key,label in MODIFIERS.items():
@@ -110,8 +111,8 @@ class NoteDialog(QDialog):
             signal.connect(self.update_preview)
         self.update_preview()
         if parent is not None and hasattr(parent,'speak'):
-            audition=QPushButton('试听此条路书');audition.clicked.connect(lambda:parent.speak(self.preview.text()));layout.addWidget(audition)
-        hint=QLabel('先将标注放在行驶路线上。方向以驶入该点的车头方向为准；提前秒数仍与提前距离叠加。');hint.setWordWrap(True);layout.addWidget(hint)
+            audition=QPushButton('Прослушать подсказку');audition.clicked.connect(lambda:parent.speak(self.preview.text()));layout.addWidget(audition)
+        hint=QLabel('Сначала поставьте отметку на маршрут движения. Направление определяется курсом машины при въезде в точку; упреждение в секундах складывается с упреждением по расстоянию.');hint.setWordWrap(True);layout.addWidget(hint)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
 
     def values(self):
@@ -159,17 +160,17 @@ class RegionCanvas(QWidget):
 
 class RegionDialog(QDialog):
     def __init__(self,frame,monitor,parent=None,*,large=False):
-        super().__init__(parent);self.setWindowTitle('框选大地图 · 只包含地图画面' if large else '框选小地图 · 只包含地图画面，尽量让玩家箭头居中')
+        super().__init__(parent);self.setWindowTitle('Выделите большую карту · только изображение карты' if large else 'Выделите мини-карту · только изображение карты, стрелка игрока по возможности в центре')
         self.resize(1120,740);self.monitor=monitor;self.region=None
         rgb=frame[:,:,::-1].copy();h,w=rgb.shape[:2]
         image=QImage(rgb.data,w,h,rgb.strides[0],QImage.Format_RGB888).copy()
-        layout=QVBoxLayout(self);layout.addWidget(QLabel(('拖动框选游戏中央的大地图，不含边框、坐标刻度与操作说明。' if large else '拖动框选左下角小地图。')+'数值使用屏幕物理像素，可兼容 DPI 缩放。'))
+        layout=QVBoxLayout(self);layout.addWidget(QLabel(('Выделите мышью большую карту в центре экрана без рамки, шкалы координат и подсказок управления. ' if large else 'Выделите мышью мини-карту в левом нижнем углу. ')+'Значения в физических пикселях экрана, масштабирование DPI учитывается.'))
         self.canvas=RegionCanvas(image);self.canvas.selected.connect(self.select);layout.addWidget(self.canvas,1)
-        self.label=QLabel('尚未选择区域');layout.addWidget(self.label)
+        self.label=QLabel('Область не выбрана');layout.addWidget(self.label)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);self.ok=buttons.button(QDialogButtonBox.Ok);self.ok.setEnabled(False)
         buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
 
     def select(self,r):
         self.region=dict(r,left=r['left']+self.monitor['left'],top=r['top']+self.monitor['top'])
-        self.label.setText(f"屏幕位置 {self.region['left']}, {self.region['top']}  ·  {r['width']} × {r['height']}")
+        self.label.setText(f"Позиция на экране {self.region['left']}, {self.region['top']}  ·  {r['width']} × {r['height']}")
         self.ok.setEnabled(True)

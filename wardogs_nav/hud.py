@@ -47,8 +47,8 @@ class Hud(QWidget):
     def __init__(self, settings):
         super().__init__()
         self.settings=settings
-        self.data={'text':'待机中','state':'idle'}
-        self.localization_text='尚未定位'
+        self.data={'text':'Ожидание','state':'idle'}
+        self.localization_text='Позиция не определена'
         self.mode='normal'
         self.drag=None
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -68,7 +68,7 @@ class Hud(QWidget):
             self.show()
 
     def set_data(self,data,mode='normal',calibrated=True):
-        self.data=data or {'text':'待机中','state':'idle'}
+        self.data=data or {'text':'Ожидание','state':'idle'}
         self.mode=mode
         self.calibrated=calibrated
         self.update()
@@ -109,61 +109,61 @@ class Hud(QWidget):
         cue=self.data.get('cue')
         kind=cue.kind if cue else 'straight'
         color='#e8c570' if self.mode=='wrc' else '#66e6c3'
-        draw_symbol(p,QRectF(14,47,82,85),'straight' if self.data.get('text')=='沿当前道路行驶' else kind,color)
+        draw_symbol(p,QRectF(14,47,82,85),'straight' if self.data.get('text')=='Продолжайте движение' else kind,color)
         p.setPen(QColor('#a3b4b7'));p.setFont(QFont('Microsoft YaHei UI',9))
-        p.drawText(QRectF(20,10,w-35,26),Qt.AlignLeft|Qt.AlignVCenter,'WARDOGS  /  '+('WRC 路书' if self.mode=='wrc' else '地面导航')+'   '+self.data.get('leg',''))
-        text=self.data.get('text','待机中')
+        p.drawText(QRectF(20,10,w-35,26),Qt.AlignLeft|Qt.AlignVCenter,'WARDOGS  /  '+('WRC-стенограмма' if self.mode=='wrc' else 'Навигация')+'   '+self.data.get('leg',''))
+        text=self.data.get('text','Ожидание')
         if cue and self.mode=='wrc' and kind in ('left','right'):
-            text=('左' if kind=='left' else '右')+f' {cue.grade}'
+            text=('лево' if kind=='left' else 'право')+f' {cue.grade}'
         p.setFont(QFont('Microsoft YaHei UI',23 if len(text)<10 else 13,QFont.Bold))
         p.setPen(QColor('#f0f4f3'))
         p.drawText(QRectF(110,40,w-125,47),Qt.AlignLeft|Qt.AlignVCenter,text)
         p.setFont(QFont('Microsoft YaHei UI',11))
         p.setPen(QColor(color))
         d=self.data.get('distance')
-        unit='米' if getattr(self,'calibrated',True) else '单位'
+        unit='м' if getattr(self,'calibrated',True) else 'ед.'
         sub=f'{d:.0f} {unit}' if d is not None else ''
         remaining=self.data.get('remaining')
         if remaining is not None:
-            sub+=f'   /   剩余 {remaining/1000:.2f} km' if unit=='米' else f'  /  剩余 {remaining:.0f}'
+            sub+=f'   /   осталось {remaining/1000:.2f} км' if unit=='м' else f'  /  осталось {remaining:.0f}'
         p.drawText(QRectF(110,87,w-125,24),Qt.AlignLeft,sub)
         p.setFont(QFont('Microsoft YaHei UI',9));p.setPen(QColor('#a3b4b7'))
         p.drawText(QRectF(110,115,w-125,24),Qt.AlignLeft,self.localization_text)
         p.setFont(QFont('Microsoft YaHei UI',8));p.setPen(QColor('#9da8ab'))
-        footer=self.data.get('next_text','按规划道路行驶' if self.data.get('state')=='navigating' else '')
+        footer=self.data.get('next_text','Следуйте по маршруту' if self.data.get('state')=='navigating' else '')
         footer=self.status_footer(footer)
         p.drawText(QRectF(20,142,w-35,22),Qt.AlignLeft,p.fontMetrics().elidedText(footer,Qt.ElideRight,int(w-35)))
 
     def status_footer(self,detail):
         parts=[self.data.get('activity',''),self.data.get('notice',''),detail]
-        if not self.settings.get('locked'):parts.append('可拖动')
+        if not self.settings.get('locked'):parts.append('можно перетащить')
         return '  ·  '.join(part for part in parts if part)
 
     def paint_roadbook(self,p,w):
         p.setFont(QFont('Microsoft YaHei UI',9));p.setPen(QColor('#e8c570'))
-        p.drawText(QRectF(16,8,w-32,22),Qt.AlignLeft,'WRC  /  路书    '+self.data.get('leg',''))
+        p.drawText(QRectF(16,8,w-32,22),Qt.AlignLeft,'WRC  /  стенограмма    '+self.data.get('leg',''))
         p.setFont(QFont('Microsoft YaHei UI',8));p.setPen(QColor('#a3b4b7'))
         p.drawText(QRectF(145,8,w-161,22),Qt.AlignRight,self.localization_text)
         cards=self.data['upcoming'][:3];width=(w-32-8*(len(cards)-1))/len(cards)
-        unit='m' if getattr(self,'calibrated',True) else '单位'
+        unit='м' if getattr(self,'calibrated',True) else 'ед.'
         for i,item in enumerate(cards):
             cue=item['cue'];x=16+i*(width+8)
             color='#ff8e79' if cue.kind in ('hard_brake','brake','caution') else '#e8c570' if i==0 else '#b4c4c9'
             p.setPen(QPen(QColor('#66563b' if i==0 else '#35424a'),1));p.setBrush(QColor('#2c302b' if i==0 else '#19252d'))
             p.drawRoundedRect(QRectF(x,34,width,103),7,7)
             draw_symbol(p,QRectF(x+5,40,min(55,width*.45),55),cue.kind,color)
-            label=str(cue.grade) if cue.kind in ('left','right') else cue_text(cue,'wrc').split('，')[0]
+            label=str(cue.grade) if cue.kind in ('left','right') else cue_text(cue,'wrc').split(', ')[0]
             p.setPen(QColor(color));p.setFont(QFont('Microsoft YaHei UI',27 if label.isdigit() else 10,QFont.Bold))
             p.drawText(QRectF(x+width*.44,40,width*.52,50),Qt.AlignCenter,label)
             p.setFont(QFont('Microsoft YaHei UI',10,QFont.Bold));p.setPen(QColor('#e8eeee'))
             p.drawText(QRectF(x+5,94,width-10,20),Qt.AlignCenter,f"{item['distance']:.0f} {unit}")
             detail=' / '.join(MODIFIERS[m] for m in cue.modifiers)
             if cue.text:detail=cue.text
-            if not detail:detail='估算' if cue.inferred else '手动路书' if cue.kind!='arrival' else '终点'
+            if not detail:detail='оценка' if cue.inferred else 'ручная заметка' if cue.kind!='arrival' else 'финиш'
             p.setFont(QFont('Microsoft YaHei UI',8));p.setPen(QColor('#aab7b8'))
             p.drawText(QRectF(x+5,116,width-10,17),Qt.AlignCenter,p.fontMetrics().elidedText(detail,Qt.ElideRight,int(width-10)))
         p.setFont(QFont('Microsoft YaHei UI',8));p.setPen(QColor('#a4b0b3'))
         remaining=self.data.get('remaining',0)
-        footer=f'剩余 {remaining/1000:.2f} km' if unit=='m' else f'剩余 {remaining:.0f} 单位'
-        footer=self.status_footer(footer+'  ·  1 慢弯 — 6 快弯')
+        footer=f'осталось {remaining/1000:.2f} км' if unit=='м' else f'осталось {remaining:.0f} ед.'
+        footer=self.status_footer(footer+'  ·  1 медленный — 6 быстрый')
         p.drawText(QRectF(16,143,w-32,20),Qt.AlignLeft,p.fontMetrics().elidedText(footer,Qt.ElideRight,int(w-32)))

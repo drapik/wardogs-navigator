@@ -11,7 +11,7 @@ def all_maps():
 
 def map_info(map_id):
     found=next((m for m in all_maps() if m['id']==map_id),None)
-    if found is None:raise ValueError(f'不支持的地图：{map_id}')
+    if found is None:raise ValueError(f'Карта не поддерживается: {map_id}')
     return found
 
 
@@ -28,5 +28,5 @@ def load_map_project(map_id):
     from .model import read_project
     path=project_path(map_id)
     data=read_project(path if path.exists() else map_asset(map_id,'project'))
-    if data['map']!=map_id:raise ValueError('此地图的配置文件中包含另一张地图，请从完整配置导入入口恢复')
+    if data['map']!=map_id:raise ValueError('Файл конфигурации этой карты содержит другую карту; восстановите его через импорт полной конфигурации')
     return data

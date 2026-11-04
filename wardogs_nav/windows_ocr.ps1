@@ -21,9 +21,9 @@ while ($null -ne ($line = [Console]::ReadLine())) {
     $bitmap = $null
     $memory = $null
     try {
-        if ($null -eq $engine) { throw 'Windows 英文文字识别组件未安装；可先使用坐标输入功能' }
+        if ($null -eq $engine) { throw 'Компонент распознавания английского текста Windows не установлен; пока можно вводить координаты вручную' }
         $request = $line | ConvertFrom-Json
-        if ($request.op -ne 'recognize') { throw '未知文字识别操作' }
+        if ($request.op -ne 'recognize') { throw 'Неизвестная операция распознавания текста' }
         $memory = [IO.MemoryStream]::new([IO.File]::ReadAllBytes([string]$request.path))
         $stream = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($memory)
         $decoder = Wait-Operation ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])

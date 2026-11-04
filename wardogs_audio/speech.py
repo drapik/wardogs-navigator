@@ -1,9 +1,10 @@
-"""Asynchronous, isolated SAPI synthesis with finite local WAV fallback."""
+"""Asynchronous speech: Yandex SpeechKit (cached), isolated SAPI, finite local WAV pack."""
 from pathlib import Path
 import wave
 from PySide6.QtCore import QObject, QThread, Signal
 from .bridge import WindowsBridge
 from .pack import DefaultVoicePack
+from .speechkit import SpeechKit, configured as speechkit_configured
 
 
 class SpeechJob(QThread):
@@ -11,29 +12,49 @@ class SpeechJob(QThread):
     failed = Signal(str)
     system_failed = Signal(str)
 
-    def __init__(self, bridge, pack, text, language, voice, rate, path, local):
+    def __init__(self, bridge, pack, text, language, voice, rate, path, local, backend='auto', speechkit=None):
         super().__init__()
-        self.bridge, self.pack, self.local = bridge, pack, local
+        self.bridge, self.pack, self.local, self.backend = bridge, pack, local, backend
+        self.speechkit = speechkit
         self.text, self.language, self.voice, self.rate, self.path = text, language, voice, rate, str(path)
+
+    def _speechkit(self):
+        engine = self.speechkit or SpeechKit()
+        engine.render(self.text, self.path, speed=2 ** max(-1., min(1., self.rate / 10)))
+        return 'speechkit'
+
+    def _system(self):
+        self.bridge.call('speak', text=self.text, language=self.language,
+                         voice=self.voice, rate=self.rate, path=self.path, timeout=12.)
+        with wave.open(self.path, 'rb') as audio:
+            if audio.getnframes() == 0:
+                raise ValueError('Системный голос вернул пустой звук')
+        return 'system'
 
     def run(self):
         try:
-            provider = 'local'
-            if not self.local:
+            if self.local:
+                self.pack.render(self.text, self.language, self.path)
+                provider = 'local'
+            elif self.backend == 'speechkit' or (self.backend == 'auto' and (self.speechkit or speechkit_configured())):
                 try:
-                    self.bridge.call('speak', text=self.text, language=self.language,
-                                     voice=self.voice, rate=self.rate, path=self.path, timeout=12.)
-                    with wave.open(self.path, 'rb') as audio:
-                        if audio.getnframes() == 0:
-                            raise ValueError('系统语音返回空音频')
-                    provider = 'system'
+                    provider = self._speechkit()
+                except Exception as exc:
+                    if self.backend == 'speechkit' or self.isInterruptionRequested():
+                        raise
+                    self.system_failed.emit('SpeechKit недоступен, говорит системный голос: ' + str(exc))
+                    provider = self._system()
+            else:
+                try:
+                    provider = self._system()
                 except Exception as exc:
                     if self.isInterruptionRequested():
                         return
-                    self.system_failed.emit(str(exc))
+                    if self.language not in self.pack.languages():
+                        raise
+                    self.system_failed.emit('Системный голос не сработал, включён встроенный пакет: ' + str(exc))
                     self.pack.render(self.text, self.language, self.path)
-            else:
-                self.pack.render(self.text, self.language, self.path)
+                    provider = 'local'
             if not self.isInterruptionRequested():
                 self.ready.emit(self.path, provider)
         except Exception as exc:
@@ -68,8 +89,9 @@ class SpeechService(QObject):
     voices_ready = Signal(list)
     idle = Signal()
 
-    def __init__(self, parent=None, *, bridge_factory=WindowsBridge, pack=None):
+    def __init__(self, parent=None, *, bridge_factory=WindowsBridge, pack=None, speechkit=None):
         super().__init__(parent)
+        self.speechkit = speechkit
         self.bridge_factory = bridge_factory
         self.pack = pack or DefaultVoicePack()
         self.bridge = None
@@ -113,16 +135,16 @@ class SpeechService(QObject):
 
     def _voices_failed(self, message):
         self.voices_ready.emit([])
-        self.status.emit('系统声音读取失败，可使用默认本地语音包：' + message)
+        self.status.emit('Не удалось получить список системных голосов: ' + message)
 
     def synthesize(self, text, language, voice, rate, path, generation, backend='auto'):
         if self.closed or self.busy:
             return False
         key = (language, voice)
-        local = backend == 'local' or key in self.unavailable
-        if not local and (self.bridge is None or self.bridge.closed):
+        local = backend == 'local' or (backend != 'speechkit' and key in self.unavailable and language in self.pack.languages())
+        if not local and backend != 'speechkit' and (self.bridge is None or self.bridge.closed):
             self.bridge = self.bridge_factory()
-        self.job = SpeechJob(self.bridge, self.pack, text, language, voice, rate, path, local)
+        self.job = SpeechJob(self.bridge, self.pack, text, language, voice, rate, path, local, backend, self.speechkit)
         revision = self.revision
         self.job.ready.connect(lambda p, provider: self.ready.emit(p, generation, provider) if revision == self.revision else None)
         self.job.failed.connect(lambda message: self.failed.emit(message, generation) if revision == self.revision else None)
@@ -133,7 +155,7 @@ class SpeechService(QObject):
     def _system_failed(self, key, message, revision):
         if revision == self.revision:
             self.unavailable[key] = message
-            self.status.emit('系统语音失败，已切换默认本地语音包：' + message)
+            self.status.emit('' + message)
 
     def retry_system(self):
         self.cancel()

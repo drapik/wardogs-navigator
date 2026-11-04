@@ -19,10 +19,10 @@ def parse_coordinates(text):
     if match is None:
         match = re.fullmatch(rf'({_NUMBER})\s*[/,]\s*({_NUMBER})', text)
     if match is None:
-        raise ValueError('请输入完整游戏坐标，例如 x87.18, y33.31')
+        raise ValueError('Введите полные игровые координаты, например x87.18, y33.31')
     point = [float(value) for value in match.groups()]
     if not all(math.isfinite(value) for value in point):
-        raise ValueError('坐标必须是有限数值')
+        raise ValueError('Координаты должны быть конечными числами')
     return point
 
 
@@ -41,13 +41,13 @@ def game_to_map(map_id, point):
     matrix, bounds = coordinate_system(map_id)
     x, y = point
     if not all(math.isfinite(value) for value in (x, y)):
-        raise ValueError('坐标必须是有限数值')
+        raise ValueError('Координаты должны быть конечными числами')
     if not (bounds['minX'] <= x <= bounds['maxX'] and bounds['minY'] <= y <= bounds['maxY']):
-        raise ValueError('游戏坐标超出当前地图范围，请检查地图选择和数值')
+        raise ValueError('Игровые координаты за пределами текущей карты; проверьте выбор карты и значения')
     result = (matrix @ [x, y, 1]).tolist()
     info = map_info(map_id)
     if not (0 <= result[0] <= info['width'] and 0 <= result[1] <= info['height']):
-        raise ValueError('此坐标位于导航底图边缘之外')
+        raise ValueError('Эти координаты за краем навигационной подложки')
     return result
 
 

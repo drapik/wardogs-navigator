@@ -10,7 +10,7 @@ def road(id,points,kind='major',confirmed=True):
 
 
 def favorite(points,kinds=None):
-    return dict(id='fav',name='河边运补线',points=points,kinds=kinds or ['major']*(len(points)-1))
+    return dict(id='fav',name='Снабжение вдоль реки',points=points,kinds=kinds or ['major']*(len(points)-1))
 
 
 def base(roads=None):
@@ -26,7 +26,7 @@ def test_saved_path_is_preserved_but_connector_uses_preferences():
         ('direct','major',[[0,50],[100,50]]),
         ('field','offroad',[[0,50],[0,90],[100,90],[100,50]]),
         ('saved','major',[[100,50],[200,50]])]]
-    saved=dict(id='favorite',name='原走法',points=[[100,50],[200,50]],kinds=['major'])
+    saved=dict(id='favorite',name='Исходный путь',points=[[100,50],[200,50]],kinds=['major'])
     preferences=dict(policy,preferences={'major':'avoid','minor':'normal','offroad':'prefer'})
     result=follow_saved(roads,saved,preferences,start=[0,50])
     assert 'field' in result.road_ids and 'direct' not in result.road_ids
@@ -65,7 +65,7 @@ def test_saved_route_keeps_detour_even_when_shortcut_available_and_can_reverse()
 
 def test_saved_route_enforces_road_type_but_ignores_legacy_confirmation_filter():
     roads=[];saved=favorite([[0,0],[100,0]],['offroad']);supplement_roads(roads,saved)
-    with pytest.raises(ValueError,match='未允许'):follow_saved(roads,saved,dict(allowed=['major'],confirmed_only=False))
+    with pytest.raises(ValueError,match='запрещённому'):follow_saved(roads,saved,dict(allowed=['major'],confirmed_only=False))
     assert follow_saved(roads,saved,dict(allowed=['offroad'],confirmed_only=True)).length==pytest.approx(100)
 
 
@@ -78,14 +78,14 @@ def test_saved_local_danger_detour_keeps_outer_sections():
     assert followed.points[0]==(0,50) or followed.points[0]==[0,50]
     assert distance(followed.points[-1],[200,50])<1
     assert all(not blocked(a,b,zone) for a,b in zip(followed.points,followed.points[1:]))
-    with pytest.raises(ValueError,match='绕行道路'):follow_saved(roads[:1],saved,policy,[zone])
+    with pytest.raises(ValueError,match='объездной дороги'):follow_saved(roads[:1],saved,policy,[zone])
 
 
 def test_utf8_library_merge_preserves_other_content_and_repeated_import(tmp_path):
     project=base([road('r',[[0,0],[100,0]])]);project['destination']=[25,30]
     project['avoid']=[dict(shape='rect',point=[500,500],width=10,height=10)]
     imported=base();imported['route_library']=[favorite([[200,200],[300,200]],['minor'])]
-    path=tmp_path/'中文收藏.json';atomic_json(path,library_payload(imported,'routes'))
+    path=tmp_path/'Русское избранное.json';atomic_json(path,library_payload(imported,'routes'))
     merged,count,added=merge_library(project,read_project(path),'routes')
     assert count==1 and added==1 and merged['destination']==[25,30] and merged['avoid']==project['avoid']
     twice,count,added=merge_library(merged,read_project(path),'routes')

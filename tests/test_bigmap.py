@@ -25,7 +25,7 @@ def window(app,tmp_path,monkeypatch):
     monkeypatch.setenv('WARDOGS_NAV_DATA',str(tmp_path/'data'))
     monkeypatch.setattr('wardogs_nav.hotkeys.foreground_window',lambda:123)
     w=MainWindow(start_worker=False);w.settings['voice']=False
-    w.project.update(roads=[dict(id='line',name='路',kind='major',points=[[100,100],[200,100],[300,100]],confirmed=True)],
+    w.project.update(roads=[dict(id='line',name='Дорога',kind='major',points=[[100,100],[200,100],[300,100]],confirmed=True)],
                      start=None,destination=None,waypoints=[],avoid=[],notes=[],destinations=[],meters_per_pixel=1,roundtrip=True)
     w.settings['bigmap']['enabled']=True;w.worker.capture=True
     w.show();app.processEvents()
@@ -184,11 +184,11 @@ def test_last_vehicle_remains_origin_after_long_bigmap_session(window,monkeypatc
 def test_failed_bigmap_keeps_surface_hotkeys_and_recovers(window,monkeypatch):
     mini(window);large(window)
     view=window.big_view;view.captured_at-=10
-    large(window,valid=False,reason='地形被遮挡')
+    large(window,valid=False,reason='Рельеф закрыт')
     assert window.big_overlay.isVisible() and window.cursor_timer.isActive() and window.global_hotkeys.active
     assert window.big_view is view and window.hud.data['state']=='bigmap'
-    assert window.fix_label.text()=='大地图识别 · 0%' and window.hud.localization_text==window.fix_label.text()
-    assert '识别中' not in window.big_message
+    assert window.fix_label.text()=='Распознавание большой карты · 0%' and window.hud.localization_text==window.fix_label.text()
+    assert 'распознаётся' not in window.big_message
     calls=[];monkeypatch.setattr('wardogs_nav.hotkeys.physical_cursor',lambda:calls.append(1) or (400,200))
     window.poll_map_cursor();assert not calls  # No cursor polling against stale geometry.
     window.on_map_hotkey('destination');assert window.worker.map_action and window.project['destination'] is None
@@ -238,7 +238,7 @@ def test_expired_hotkey_reports_failure_instead_of_silently_disappearing(window)
     old=(window.worker.session,'destination',(400,200),123,time.monotonic()-7)
     window.worker.retry_actions([old],123)
     assert failures and window.worker.map_action is None
-    assert '已取消' in window.big_message
+    assert 'отмен' in window.big_message
 
 
 def test_full_hotkey_queue_reports_rejection_and_remains_bounded(window):
@@ -246,11 +246,11 @@ def test_full_hotkey_queue_reports_rejection_and_remains_bounded(window):
     pending=window.worker.take_actions()
     for _ in range(8):assert window.worker.request_action('destination',(400,200),123)
     assert not window.worker.request_action('start',(400,200),123)
-    assert '较多' in window.big_message
+    assert 'много' in window.big_message
     window.worker.retry_actions(pending,123)
     actions=window.worker.take_actions()
     assert len(actions)==8 and all(a[1]=='waypoint' for a in actions)
-    assert '取消' in window.big_message
+    assert 'отмен' in window.big_message
 
 
 def test_blocked_new_trip_reports_failure_when_mini_returns(window):
@@ -258,7 +258,7 @@ def test_blocked_new_trip_reports_failure_when_mini_returns(window):
     window.project['avoid']=[dict(point=[300,100],radius=10)]
     window.apply_map_action('navigate',[300,100]);mini(window)
     assert not window.navigator.active and not window.pending_start
-    assert window.hud.data['state']=='offroute' and '无可行路线' in window.hud.data['text']
+    assert window.hud.data['state']=='offroute' and 'Нет проезжего маршрута' in window.hud.data['text']
 
 
 def test_bigmap_pan_does_not_move_vehicle_or_progress(window):
@@ -271,13 +271,13 @@ def test_bigmap_pan_does_not_move_vehicle_or_progress(window):
 
 def test_edit_return_endpoint_resumes_same_leg_and_clear_keeps_hud(window):
     mini(window);window.project['destination']=[300,100];window.begin_navigation()
-    window.navigator.lap=1;window.navigator.leg='返程';window.route=window.route.reversed();window.navigator.route=window.route
+    window.navigator.lap=1;window.navigator.leg='обратный путь';window.route=window.route.reversed();window.navigator.route=window.route
     large(window);window.apply_map_action('start',[120,100])
     assert window.big_resume['lap']==1 and window.route.points[-1]==pytest.approx([120,100])
     window.apply_map_action('destination',[280,100])
     assert window.project['start']==[120,100] and window.big_resume['lap']==1
     for _ in range(3):mini(window,250)  # Preserve the existing jump-confirmation gate.
-    assert window.navigator.active and window.navigator.leg=='返程' and window.navigator.lap==1
+    assert window.navigator.active and window.navigator.leg=='обратный путь' and window.navigator.lap==1
     assert window.route.points[-1]==pytest.approx([120,100])
     large(window);window.hud.show();window.apply_map_action('clear',[200,100])
     assert window.project['start'] is None and window.project['destination'] is None
@@ -289,7 +289,7 @@ def test_nonroad_overlay_mask_covers_labels_and_does_not_draw_roads(window):
     mini(window);view=large(window)
     window.project.update(start=[100,100],destination=[300,100],waypoints=[[200,100]],
         avoid=[dict(shape='rect',point=[220,220],width=40,height=30)],
-        notes=[dict(point=[150,200],type='caution',text='桥梁')])
+        notes=[dict(point=[150,200],type='caution',text='Мост')])
     overlay=window.big_overlay;overlay.capture_excluded=False;masks=[];overlay.mask_changed.connect(masks.append)
     overlay.update_map(view,window.project)
     pixels=np.frombuffer(overlay.surface.constBits(),np.uint8).reshape(800,800,4)
@@ -326,7 +326,7 @@ def test_symbol_shortcuts_save_and_conflicts_remain_visible(window):
     assert window.settings['bigmap_hotkeys']['destination']=='Ctrl+Alt+]'
     window.hotkey_fields['start'].setKeySequence(QKeySequence('Ctrl+Shift+8'))
     window.save_map_hotkeys()
-    assert '重复' in window.hotkey_status.text()
+    assert 'повторяется' in window.hotkey_status.text()
     assert window.settings['bigmap_hotkeys']['start']=='Ctrl+Alt+['
 
 
@@ -338,10 +338,10 @@ def test_bigmap_status_stays_stable_through_transient_failures(window):
     window.big_overlay.update_map=capture
     window.big_message_until=0
     for _ in range(3):
-        large(window,valid=False,reason='大地图匹配不可靠')
+        large(window,valid=False,reason='Совпадение большой карты ненадёжно')
         view.captured_at-=4;window.check_stale()
         assert window.fix_label.text()==original==window.hud.localization_text
-        assert window.hud.data['text']=='大地图操作中'
-    assert messages and len(set(messages))==1 and '识别中' not in messages[0]
+        assert window.hud.data['text']=='Работа с большой картой'
+    assert messages and len(set(messages))==1 and 'распознаётся' not in messages[0]
     large(window,confidence=.85)
-    assert window.hud.localization_text=='大地图识别 · 85%'
+    assert window.hud.localization_text=='Распознавание большой карты · 85%'

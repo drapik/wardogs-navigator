@@ -19,7 +19,7 @@ def crossing():
             road('ground',[[300,100],[300,300],[300,500]])]
 
 def test_bridge_crossing_cannot_turn_even_at_shared_vertex(crossing):
-    with pytest.raises(RouteError,match='不连通'):
+    with pytest.raises(RouteError,match='не связаны'):
         plan(crossing,[[100,300],[300,500]],['major'])
     for anchors in ([[100,300],[500,300]],[[300,100],[300,500]]):
         r=plan(crossing,anchors,['major'])
@@ -57,17 +57,17 @@ def test_waypoint_at_crossing_cannot_teleport_between_levels(crossing,reverse_or
     with pytest.raises(RouteError):plan(crossing,[[100,300],[300,300],[300,500]],['major'])
 
 def test_favourite_rejects_existing_impossible_turn(crossing):
-    saved=dict(id='fav',name='错误转弯',points=[[100,300],[300,300],[300,500]],kinds=['major','major'])
+    saved=dict(id='fav',name='Неверный поворот',points=[[100,300],[300,300],[300,500]],kinds=['major','major'])
     before=deepcopy(crossing)
     assert supplement_roads(crossing,saved)==0
-    with pytest.raises(RouteError,match='不能直接转弯'):follow_saved(crossing,saved,POLICY)
+    with pytest.raises(RouteError,match='повернуть нельзя'):follow_saved(crossing,saved,POLICY)
     assert crossing==before
 
 def test_saved_bridge_keeps_layer_on_import_and_reverse(crossing,tmp_path):
     r=plan(crossing,[[100,300],[500,300]],['major'])
-    saved=saved_route('过桥',r)
+    saved=saved_route('Через мост',r)
     p=project(crossing);p['route_library']=[saved]
-    path=tmp_path/'桥梁收藏.json';atomic_json(path,library_payload(p,'routes'))
+    path=tmp_path/'избранное_мосты.json';atomic_json(path,library_payload(p,'routes'))
     incoming=read_project(path)
     target=project([crossing[1]])
     merged,count,added=merge_library(target,incoming,'routes')
@@ -79,13 +79,13 @@ def test_saved_bridge_keeps_layer_on_import_and_reverse(crossing,tmp_path):
 
 def test_marking_existing_road_as_bridge_does_not_clone_ground_favourite(crossing):
     crossing[0]['bridge']=False
-    saved=saved_route('旧路径',plan(crossing,[[100,300],[300,500]],['major']))
+    saved=saved_route('Старый путь',plan(crossing,[[100,300],[300,500]],['major']))
     crossing[0]['bridge']=True
     assert supplement_roads(crossing,saved)==0 and len(crossing)==2
-    with pytest.raises(RouteError,match='不能直接转弯'):follow_saved(crossing,saved,POLICY)
+    with pytest.raises(RouteError,match='повернуть нельзя'):follow_saved(crossing,saved,POLICY)
 
 def test_export_refreshes_legacy_favourite_bridge_layer(crossing):
-    legacy=dict(id='old',name='旧过桥路径',points=[[100,300],[500,300]],kinds=['major'])
+    legacy=dict(id='old',name='Старый путь через мост',points=[[100,300],[500,300]],kinds=['major'])
     p=project(crossing);p['route_library']=[legacy]
     exported=library_payload(p,'routes')['route_library'][0]
     assert exported['bridges'] and all(exported['bridges'])
@@ -97,7 +97,7 @@ def test_bridgeheads_survive_portable_favourite_reconstruction():
     roads=[road('in',[[50,100],[100,100]]),
            road('deck',[[100,100],[200,100],[300,100]],bridge=True,bridge_start=True,bridge_end=True),
            road('out',[[300,100],[350,100]])]
-    saved=saved_route('桥头',plan(roads,[[50,100],[350,100]],['major']))
+    saved=saved_route('Въезд на мост',plan(roads,[[50,100],[350,100]],['major']))
     restored=[];supplement_roads(restored,saved)
     result=plan(restored,[[50,100],[350,100]],['major'])
     assert result.length==pytest.approx(300)
@@ -108,12 +108,12 @@ def test_snapped_mid_bridge_connection_survives_export():
     roads=[road('ground',[[300,50],[300,100],[300,150]]),
            road('a',[[100,100],[300.4,100]],bridge=True,bridge_end=True),
            road('b',[[300.4,100],[500,100]],bridge=True)]
-    saved=saved_route('中间接地',plan(roads,[[100,100],[500,100]],['major']))
+    saved=saved_route('Опора посередине',plan(roads,[[100,100],[500,100]],['major']))
     restored=[deepcopy(roads[0])];supplement_roads(restored,saved)
     assert plan(restored,[[100,100],[300,150]],['major']).length==pytest.approx(250,abs=2)
 
 def test_favourite_connector_must_use_bridgehead_at_overlapping_projection(crossing):
-    saved=saved_route('过桥',plan(crossing,[[100,300],[500,300]],['major']))
+    saved=saved_route('Через мост',plan(crossing,[[100,300],[500,300]],['major']))
     with pytest.raises(RouteError):follow_saved(crossing,saved,POLICY,start=[300,150])
     crossing[0]['bridge_start']=True
     crossing.append(road('approach',[[300,100],[100,100],[100,300]]))
@@ -122,12 +122,12 @@ def test_favourite_connector_must_use_bridgehead_at_overlapping_projection(cross
 
 def test_road_bridge_flags_survive_utf8_roundtrip_and_validation(crossing,tmp_path):
     crossing[0].update(bridge_start=True,bridge_end=False)
-    p=project(crossing);path=tmp_path/'桥梁路网.json'
+    p=project(crossing);path=tmp_path/'дорожная_сеть_мосты.json'
     atomic_json(path,library_payload(p,'roads'));loaded=read_project(path)
     assert loaded['roads']==p['roads']
     assert not loaded['roads'][1].get('bridge',False)
     loaded['roads'][0]['bridge']='yes'
-    with pytest.raises(ValueError,match='桥梁'):validate_project(loaded)
+    with pytest.raises(ValueError,match='(?i)мост'):validate_project(loaded)
 
 def test_ordinary_road_import_preserves_legacy_record_without_duplicates(crossing):
     p=project([crossing[1]]);before=deepcopy(p['roads'])

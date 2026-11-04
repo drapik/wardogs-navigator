@@ -20,13 +20,13 @@ class WindowsBridge:
     def start(self):
         with self.lock:
             if self.closed:
-                raise RuntimeError('语音服务已停止')
+                raise RuntimeError('Голосовой сервис остановлен')
             if self.process is not None:
                 return
             command = self.command
             if command is None:
                 if os.name != 'nt':
-                    raise RuntimeError('Windows 系统语音不可用')
+                    raise RuntimeError('Системный голос Windows недоступен')
                 executable = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
                 command = [str(executable), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(self.script)]
             process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -52,14 +52,14 @@ class WindowsBridge:
                 process.stdin.flush()
                 response = self.responses.get(timeout=timeout)
                 if response is None:
-                    raise RuntimeError(f'Windows 语音服务已退出（退出码 {process.poll()}）')
+                    raise RuntimeError(f'Голосовой сервис Windows завершился (код {process.poll()})')
                 result = json.loads(response)
                 if not result.get('ok'):
-                    raise RuntimeError(result.get('error', 'Windows 语音服务失败'))
+                    raise RuntimeError(result.get('error', 'Ошибка голосового сервиса Windows'))
                 return result
             except Empty:
                 self.close()
-                raise RuntimeError('Windows 语音服务超时') from None
+                raise RuntimeError('Голосовой сервис Windows не ответил вовремя') from None
             except (OSError, ValueError, RuntimeError):
                 self.close()
                 raise

@@ -16,12 +16,12 @@ def infer(engine, phonemes, voice, speed=1.):
     import numpy as np
     tokens = engine.tokenizer.tokenize(phonemes)
     if not 0 < len(tokens) <= 510:
-        raise ValueError('语音片段的音素数量无效')
+        raise ValueError('Неверное число фонем в фрагменте голоса')
     inputs = {item.name: item.type for item in engine.sess.get_inputs()}
     token_key = 'input_ids' if 'input_ids' in inputs else 'tokens'
     speed_type = np.int32 if inputs['speed'] == 'tensor(int32)' else np.float32
     if speed_type == np.int32 and speed != int(speed):
-        raise ValueError('数字生成需要支持浮点语速的新版模型导出')
+        raise ValueError('Для генерации чисел нужен экспорт новой модели с дробной скоростью речи')
     outputs = engine.sess.run(None, {
         token_key: np.array([[0, *tokens, 0]], dtype=np.int64),
         'style': np.asarray(engine.voices[voice][len(tokens) - 1], dtype=np.float32),
@@ -35,12 +35,12 @@ def numeric_samples(engine, g2p, text, voice):
     """Keep the complete numeral in a spoken carrier, including boundary pauses."""
     import numpy as np
     if 'duration' not in {item.name for item in engine.sess.get_outputs()}:
-        raise ValueError('数字生成需要带 duration 输出的 Kokoro v1.0 模型导出，见语音包 SOURCES.md')
+        raise ValueError('Для генерации чисел нужен экспорт модели Kokoro v1.0 с выходом duration, см. SOURCES.md голосового пакета')
     prefix, word, suffix = g2p('现在读数') + ', ', g2p(text), ', ' + g2p('读数结束') + '.'
     audio, durations, count = infer(engine, prefix + word + suffix, voice, .8)
     durations = np.asarray(durations).ravel()
     if len(durations) != count + 2 or np.any(durations <= 0) or len(audio) != sum(durations) * 600:
-        raise ValueError('数字音频的模型时间边界无效')
+        raise ValueError('Неверные временные границы модели в аудио чисел')
     edges = np.r_[0, np.cumsum(durations)].astype(int) * 600
     begin = 1 + len(engine.tokenizer.tokenize(prefix))
     end = begin + len(engine.tokenizer.tokenize(word))
@@ -55,7 +55,7 @@ def main():
     parser.add_argument('--model', required=True)
     parser.add_argument('--voices', required=True)
     parser.add_argument('--output', default=str(Path(__file__).resolve().parents[1] / 'wardogs_audio/assets/default'))
-    parser.add_argument('--refresh-numbers', action='store_true', help='重制数字、完整数词及距离单位，保留其他已有录音')
+    parser.add_argument('--refresh-numbers', action='store_true', help='Пересоздать цифры, числительные и единицы расстояния, сохранив остальные записи')
     args = parser.parse_args()
     import numpy as np
     import soundfile as sf

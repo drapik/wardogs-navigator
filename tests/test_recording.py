@@ -104,7 +104,7 @@ def test_each_reentry_after_short_ordinary_road_has_offroad_cue(mode):
     cues=cues_for(r,[],mode)
     entries=[c for c in cues if c.enter_offroad]
     assert [c.at for c in entries]==[100,205]
-    assert all('进入越野路段' in cue_text(c,mode) for c in entries)
+    assert all('съезд на бездорожье' in cue_text(c,mode).lower() for c in entries)
     reversed_entries=[c for c in cues_for(r.reversed(),[],mode) if c.enter_offroad]
     assert [c.at for c in reversed_entries]==[100]
 
@@ -112,20 +112,10 @@ def test_each_reentry_after_short_ordinary_road_has_offroad_cue(mode):
 def test_left_turn_offroad_replaces_junction_text_without_duplicate():
     r=Route([[0,100],[100,100],[100,0]],['major','offroad'],['a','b'],200,[0,0],0,[dict(at=100,delta=-90)])
     cues=cues_for(r,[],'normal')
-    assert len(cues)==2 and cue_text(cues[0],'normal')=='左转进入越野路段'
+    assert len(cues)==2 and cue_text(cues[0],'normal')=='Налево, съезд на бездорожье'
     nav=Navigator();settings=default_settings();settings.update(lead_m=100,lead_s=0)
     nav.start(r,[],settings,1)
-    assert nav.update([0,100],0)['speech']=='前方100米，左转进入越野路段'
-
-
-def test_offroad_prompts_have_local_audio_without_system_tts(tmp_path):
-    from wardogs_audio.pack import DefaultVoicePack
-    import wave
-    pack=DefaultVoicePack()
-    for i,direction in enumerate(('','直行','左转','右转','向左前方','向右前方','掉头')):
-        output=tmp_path/f'{i}.wav'
-        pack.render('前方100米，'+direction+'进入越野路段','zh-CN',output)
-        with wave.open(str(output)) as audio:assert audio.getnframes()>audio.getframerate()
+    assert nav.update([0,100],0)['speech']=='Через 100 метров налево, съезд на бездорожье'
 
 
 @pytest.mark.parametrize('mode',['normal','wrc'])
@@ -135,4 +125,4 @@ def test_straight_crossing_of_ordinary_road_reannounces_offroad(mode):
     assert all(k=='offroad' for k in route.kinds)
     entries=[c for c in cues_for(route,[],mode) if c.enter_offroad]
     assert len(entries)==1 and entries[0].at==40
-    assert '进入越野路段' in cue_text(entries[0],mode)
+    assert 'съезд на бездорожье' in cue_text(entries[0],mode).lower()

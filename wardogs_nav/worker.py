@@ -51,7 +51,7 @@ class CaptureWorker(QThread):
             full=len(self.actions)>=8
             if not full:self.actions.append((self.session,action,point,foreground,time.monotonic()))
         if full:
-            self.action_failed.emit('待核准操作较多，请稍后再试');return False
+            self.action_failed.emit('Слишком много действий ждут проверки, попробуйте позже');return False
         self.wake.set()
         return True
 
@@ -64,10 +64,10 @@ class CaptureWorker(QThread):
         retry=[]
         for action in actions:
             if action[0]==self.session and action[3]==foreground and time.monotonic()-action[4]<6:retry.append(action)
-            else:self.action_failed.emit('未能核准鼠标位置，操作已取消；请等待大地图识别恢复后重试')
+            else:self.action_failed.emit('Не удалось проверить позицию курсора, действие отменено. Дождитесь распознавания большой карты и повторите')
         with self.action_lock:
             pending=retry+list(self.actions);self.actions=deque(pending[:8])
-        if len(pending)>8:self.action_failed.emit('待核准操作较多，最后的操作已取消，请稍后重试')
+        if len(pending)>8:self.action_failed.emit('Слишком много действий ждут проверки, последнее отменено. Повторите позже')
 
     def request_sample(self,path):
         self.reset_view()
@@ -89,7 +89,7 @@ class CaptureWorker(QThread):
                 except Exception as error:
                     if context!=self.context:continue
                     loaded=context;self.capture=False
-                    self.failed.emit(f'地图特征初始化失败：{error}',*context)
+                    self.failed.emit(f'Ошибка инициализации признаков карты: {error}',*context)
             if context!=self.context:continue
             sample=self.sample
             if sample and sample[0]==context:self.sample=None
@@ -109,7 +109,7 @@ class CaptureWorker(QThread):
                         if region['width'] < 60 or region['height'] < 60:
                             if context!=self.context or not self.capture:continue
                             self.capture=False
-                            self.failed.emit('截图区域至少为 60 × 60 像素；调整后重新开启定位',*context)
+                            self.failed.emit('Область захвата должна быть не меньше 60 × 60 пикселей. Исправьте и снова включите определение позиции',*context)
                             continue
                         if grabber is None:
                             import mss
@@ -119,7 +119,7 @@ class CaptureWorker(QThread):
                 except Exception as error:
                     if context!=self.context:continue
                     locator.last=None
-                    fix=Fix(reason=f'截图或定位失败：{error}')
+                    fix=Fix(reason=f'Ошибка захвата или определения позиции: {error}')
                     if not sample and frame is None and grabber is not None:
                         try:grabber.close()
                         except Exception:pass
@@ -134,7 +134,7 @@ class CaptureWorker(QThread):
                 if live and fix.valid:
                     locator.map_reference=None
                     self.coordinates.reset()
-                    if actions:self.action_failed.emit('已返回小地图，未完成的大地图操作已取消')
+                    if actions:self.action_failed.emit('Возврат к мини-карте, незавершённые действия на большой карте отменены')
                     # No big-map capture, matching, foreground or cursor queries.
                 elif live and self.settings.get('bigmap',{}).get('enabled'):
                     view=MapViewFix();big_frame=None
@@ -142,9 +142,9 @@ class CaptureWorker(QThread):
                     foreground=foreground_window();captured=time.monotonic()
                     try:
                         if self.target_window and foreground!=self.target_window:
-                            view.reason='游戏不在前台'
+                            view.reason='Игра не на переднем плане'
                         elif region['width']<60 or region['height']<60:
-                            view.reason='大地图区域至少为 60 × 60 像素'
+                            view.reason='Область большой карты должна быть не меньше 60 × 60 пикселей'
                         else:
                             if grabber is None:
                                 import mss
@@ -156,9 +156,9 @@ class CaptureWorker(QThread):
                                 if self.coordinates.error:view.reason=self.coordinates.error
                             else:self.coordinates.reset()
                             if foreground_window()!=foreground:
-                                view.valid=False;view.coordinate=None;view.reason='前台窗口已切换'
+                                view.valid=False;view.coordinate=None;view.reason='Активное окно сменилось'
                     except Exception as error:
-                        view=MapViewFix(reason=f'大地图截图或识别失败：{error}')
+                        view=MapViewFix(reason=f'Ошибка захвата или распознавания большой карты: {error}')
                     if context!=self.context or session!=self.session or not self.capture:continue
                     if region!=self.settings['bigmap_capture'] or not self.settings['bigmap']['enabled']:continue
                     view.map_id,view.generation=context
@@ -166,7 +166,7 @@ class CaptureWorker(QThread):
                     self.mode='big' if view.valid or view.coordinate else 'lost'
                     # Retain quick consecutive presses and retry transient failures.
                     pending=[a for a in actions if a[0]==session and a[3]==foreground and captured-a[4]<6]
-                    if len(pending)<len(actions):self.action_failed.emit('大地图操作超时或窗口已切换，请重试')
+                    if len(pending)<len(actions):self.action_failed.emit('Время действия на большой карте истекло или окно сменилось, повторите')
                     if not view.valid and not view.coordinate:
                         self.retry_actions(pending,foreground);pending=[]
                     self.map_result.emit(view,big_frame,pending)

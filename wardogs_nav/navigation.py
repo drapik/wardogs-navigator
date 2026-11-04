@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import math
 from .routing import cumulative, distance, bearing, angle_delta, nearest_on_route, point_at
 from .model import NOTE_TYPES, MODIFIERS
+from .ru import count
 
 
 @dataclass
@@ -116,31 +117,43 @@ def cues_for(route, notes, mode, scale=1.):
     return sorted(cues, key=lambda c:c.at)
 
 
+OFFROAD=', съезд на бездорожье'
+
+
+def lower_first(text):
+    return text[:1].lower()+text[1:]
+
+
 def cue_text(cue, mode, spoken=False):
     if cue.enter_offroad and mode=='normal':
-        return {'straight':'直行','left':'左转','right':'右转','keep_left':'向左前方','keep_right':'向右前方','uturn':'掉头'}.get(cue.kind,'')+'进入越野路段'
-    if cue.enter_offroad and cue.id.startswith('offroad-'):return '进入越野路段'
+        prefix={'straight':'Прямо','left':'Налево','right':'Направо','keep_left':'Левее','keep_right':'Правее','uturn':'Развернитесь'}.get(cue.kind)
+        return prefix+OFFROAD if prefix else 'Съезд на бездорожье'
+    if cue.enter_offroad and cue.id.startswith('offroad-'):return 'Съезд на бездорожье'
     if cue.text:
-        return cue.text+('，进入越野路段' if cue.enter_offroad else '')
+        return cue.text+(OFFROAD if cue.enter_offroad else '')
     if cue.kind == 'arrival':
-        return '到达目的地'
+        return 'Пункт назначения'
     if cue.kind in ('left', 'right'):
         if mode == 'wrc':
-            grade='一二三四五六'[max(1,min(6,cue.grade))-1] if spoken else str(cue.grade)
-            text=('左' if cue.kind == 'left' else '右')+grade
-        else:text='路口左转' if cue.kind == 'left' else '路口右转'
+            text=('лево' if cue.kind == 'left' else 'право')+f' {max(1,min(6,cue.grade)) if spoken else cue.grade}'
+        else:text='Поверните налево' if cue.kind == 'left' else 'Поверните направо'
     else:
-        text={'straight':'路口直行' if mode=='normal' else '直线',
-              'keep_left':'路口向左前方','keep_right':'路口向右前方','uturn':'掉头'}.get(cue.kind,NOTE_TYPES.get(cue.kind,'继续前进'))
-    if mode=='wrc' and cue.modifiers:text+='，'+'，'.join(MODIFIERS[m] for m in cue.modifiers)
-    if cue.enter_offroad:text+='，进入越野路段'
+        text={'straight':'Прямо' if mode=='normal' else 'прямая',
+              'keep_left':'Держитесь левее','keep_right':'Держитесь правее','uturn':'Развернитесь'}.get(cue.kind,NOTE_TYPES.get(cue.kind,'Продолжайте движение'))
+    if mode=='wrc' and cue.modifiers:text+=', '+', '.join(MODIFIERS[m] for m in cue.modifiers)
+    if cue.enter_offroad:text+=OFFROAD
     return text
 
 
 def distance_text(value, calibrated=True):
     value=max(0,round(value/10)*10)
-    if calibrated and value>=1000:return f'{value/1000:g}公里'
-    return f'{value:.0f}'+('米' if calibrated else '地图单位')
+    if calibrated and value>=1000:
+        km=value/1000
+        if km==int(km):return count(int(km),'километр','километра','километров')
+        return f'{km:g}'.replace('.',',')+' километра'
+    n=int(value)
+    if calibrated:return count(n,'метр','метра','метров')
+    return count(n,'единица','единицы','единиц')+' карты'
 
 
 class Navigator:
@@ -154,7 +167,7 @@ class Navigator:
         self.spoken = set()
         self.pending = set()
         self.lap = 0
-        self.leg = '去程'
+        self.leg = 'путь туда'
         self.cues = []
         self.offroute_count = 0
         self.arrival_count = 0
@@ -181,7 +194,7 @@ class Navigator:
         self.pending.clear()
         self.cues = cues_for(route, notes, settings['mode'], self.scale)
         self.lap = 0
-        self.leg = '去程'
+        self.leg = 'путь туда'
         self.offroute_count = 0
         self.arrival_count = 0
         self.arrival_lock = None
@@ -265,12 +278,12 @@ class Navigator:
                 self.arrival_lock=list(self.goal)
                 self.goal,self.return_goal=self.return_goal,self.goal
                 self.route=self.route.reversed()
-                self.lap+=1;self.leg='返程' if self.lap%2 else '去程'
+                self.lap+=1;self.leg='обратный путь' if self.lap%2 else 'путь туда'
                 self.cues=cues_for(self.route,self.notes,self.settings['mode'],self.scale)
                 self.progress=0.;self.spoken.clear();self.pending.clear();self.lost()
-                return {'state':'turnaround','text':f'已到达，开始{self.leg}','speech':f'已到达，请安全掉头，开始{self.leg}','remaining':self.route.length*self.scale}
+                return {'state':'turnaround','text':f'Вы прибыли, начинаем {self.leg}','speech':f'Вы прибыли. Развернитесь в безопасном месте, начинаем {self.leg}','remaining':self.route.length*self.scale}
             self.active=False
-            return {'state':'arrived','text':'已到达目的地','speech':'已到达目的地','remaining':0}
+            return {'state':'arrived','text':'Вы прибыли','speech':'Вы прибыли','remaining':0}
         tolerance=self.settings.get('road_tolerance_m',30)
         if road_gap is not None and road_gap>tolerance:
             self.waiting_for_road=True;self.replan_retry=None;self.offroute_count=0;self.lost()
@@ -280,7 +293,7 @@ class Navigator:
             moved=retry is None or (now-retry[1]>=5 and distance(point,retry[0])*self.scale>=max(15,tolerance))
             replan=rejoin and moved
             if replan:self.replan_retry=(list(point),now)
-            return {'state':'waiting_road','text':'已返回道路，正在规划' if replan else '请返回道路','speech':None,'replan':replan}
+            return {'state':'waiting_road','text':'Вы на дороге, строю маршрут' if replan else 'Вернитесь на дорогу','speech':None,'replan':replan}
         # Constrain progress around the last segment to avoid jumping to a later
         # leg at a crossing or an out-and-back overlap.
         upper = math.inf if old_time is None else self.progress + max(45/self.scale, (self.speed*(dt or 1)+60)/self.scale)
@@ -306,16 +319,16 @@ class Navigator:
             self.progress=max(0,direction_projection[1])
             future={c.id for c in self.cues if c.at>=self.progress-6/self.scale}
             self.spoken.difference_update(future|{'along-'+id for id in future})
-            return {'state':'wrongway','text':'请安全掉头','cue':Cue('wrongway',self.progress,'uturn'),
-                    'speech':'行驶方向相反，请在安全位置掉头' if announced else None,
+            return {'state':'wrongway','text':'Развернитесь','cue':Cue('wrongway',self.progress,'uturn'),
+                    'speech':'Вы едете в обратном направлении. Развернитесь в безопасном месте' if announced else None,
                     'remaining':max(0,(self.route.length-self.progress)*self.scale),'leg':self.leg,'lap':self.lap}
         projection = nearest_on_route(point, self.route.points, max(0,self.progress-25/self.scale), upper)
         if projection is None:
-            return {'state':'offroute','text':'偏离路线，请检查定位或重新规划','speech':None}
+            return {'state':'offroute','text':'Вы сошли с маршрута. Проверьте позицию или постройте маршрут заново','speech':None}
         gap, s, _, _ = projection
         if gap*self.scale > self.settings['offroute_m']:
             self.offroute_count += 1
-            return {'state':'offroute','text':'偏离路线，正在重算' if self.offroute_count >= 3 else '偏离路线','speech':None,'replan':self.offroute_count >= 3}
+            return {'state':'offroute','text':'Вы сошли с маршрута, маршрут перестраивается' if self.offroute_count >= 3 else 'Вы сошли с маршрута','speech':None,'replan':self.offroute_count >= 3}
         self.offroute_count = 0
         self.progress = max(self.progress, s)
         remaining = max(0., (self.route.length-self.progress)*self.scale)
@@ -335,23 +348,23 @@ class Navigator:
             speech_ids.add(announcement.id)
             text=cue_text(announcement,mode,spoken=True)
             if mode=='normal':
-                speech=f'前方{distance_text(speech_distance,self.calibrated)}，{text}' if speech_distance>=15 else text
+                speech=f'Через {distance_text(speech_distance,self.calibrated)} {lower_first(text)}' if speech_distance>=15 else text
             else:
-                speech=(distance_text(speech_distance,self.calibrated)+'，' if speech_distance>=15 else '')+text
+                speech=(distance_text(speech_distance,self.calibrated)+', ' if speech_distance>=15 else '')+text
                 previous=announcement
                 for following in pending[1:3]:
                     gap=(following.at-previous.at)*self.scale
                     if following.kind=='arrival' or gap>self.settings.get('wrc_chain_m',60):break
                     if following.id not in delivered:
-                        speech+=('，接，' if gap<25 else '，'+distance_text(gap,self.calibrated)+'，')+cue_text(following,mode,spoken=True)
+                        speech+=(', сразу ' if gap<25 else ', через '+distance_text(gap,self.calibrated)+' ')+cue_text(following,mode,spoken=True)
                         speech_ids.add(following.id)
                     previous=following
         elif mode=='normal' and to_cue>lead and 'along-'+cue.id not in delivered:
             speech_ids.add('along-'+cue.id)
-            speech='沿当前道路行驶'+distance_text(to_cue,self.calibrated)
+            speech='Продолжайте движение '+distance_text(to_cue,self.calibrated)
         self.pending.update(speech_ids)
         text=cue_text(cue,mode)
-        if mode=='normal' and to_cue>lead:text='沿当前道路行驶'
+        if mode=='normal' and to_cue>lead:text='Продолжайте движение'
         return {'state':'navigating','cue':cue,'text':text,'next_text':cue_text(cue,mode),
                 'distance':to_cue,'remaining':remaining,'speech':speech,'speech_ids':speech_ids,'speed':self.speed,
                 'inferred':cue.inferred,'leg':self.leg,'lap':self.lap,

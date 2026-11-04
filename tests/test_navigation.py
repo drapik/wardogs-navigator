@@ -1,7 +1,7 @@
 import pytest
 from wardogs_nav.routing import Route
 from wardogs_nav.navigation import Navigator,cues_for,cue_text
-from wardogs_nav.model import default_settings
+from wardogs_nav.model import default_settings,NOTE_TYPES,MODIFIERS
 
 
 def route(points):
@@ -30,8 +30,8 @@ def test_speech_is_deduplicated_and_lead_adjustable():
     nav=Navigator();settings=default_settings();settings.update(lead_m=25,lead_s=0,arrival_m=5)
     r=route([[0,100],[0,0],[100,0]]);r.junctions=[dict(at=100,delta=90)]
     nav.start(r,[],settings,1)
-    assert nav.update([0,60],0)['speech']=='沿当前道路行驶60米'
-    assert nav.update([0,20],1)['speech']=='前方20米，路口右转'
+    assert nav.update([0,60],0)['speech']=='Продолжайте движение 60 метров'
+    assert nav.update([0,20],1)['speech']=='Через 20 метров поверните направо'
     assert nav.update([0,19],2)['speech'] is None
     nav.stop();assert nav.update([0,0],3) is None
 
@@ -68,7 +68,7 @@ def test_wrc_manual_brake_square_chain_modifiers_and_separate_timing():
     nav.start(route([[0,0],[300,0]]),notes,settings,1)
     assert nav.update([0,0],0)['speech'] is None
     speech=nav.update([20,0],1)['speech']
-    assert '急刹车' in speech and '左三，别切' in speech and '右直角' in speech
+    assert NOTE_TYPES['hard_brake'] in speech and 'лево 3, '+MODIFIERS['dont_cut'] in speech and NOTE_TYPES['square_right'] in speech
     assert nav.update([21,0],2)['speech'] is None
     assert nav.update([100,0],5)['speech'] is None
 
@@ -78,7 +78,7 @@ def test_after_junction_speaks_next_road_distance_and_reverse_turn():
     nav=Navigator();settings=default_settings();settings.update(lead_m=30,lead_s=0)
     nav.start(r,[],settings,1)
     nav.update([0,20],0)
-    assert nav.update([15,0],1)['speech']=='沿当前道路行驶380米'
+    assert nav.update([15,0],1)['speech']=='Продолжайте движение 380 метров'
     assert cues_for(r.reversed(),[],'normal')[0].kind=='left'
 
 
@@ -87,9 +87,9 @@ def test_wrc_next_unspoken_note_can_play_before_passing_previous():
     notes=[dict(id=id,point=[x,0],type=kind,grade=6,bearing=90,direction='both',lead_m=lead)
            for id,x,kind,lead in [('one',200,'left',200),('two',240,'right',220)]]
     nav=Navigator();nav.start(route([[0,0],[500,0]]),notes,settings,1)
-    assert '左六' in nav.update([0,0],0)['speech']
+    assert 'лево 6' in nav.update([0,0],0)['speech']
     assert nav.update([1,0],1)['speech'] is None
-    assert '右六' in nav.update([25,0],2)['speech']
+    assert 'право 6' in nav.update([25,0],2)['speech']
 
 
 def test_integer_timing_controls_survive_restart(tmp_path,monkeypatch):
@@ -103,11 +103,11 @@ def test_integer_timing_controls_survive_restart(tmp_path,monkeypatch):
 
 def test_manual_wrc_grade_overrides_estimate_and_reverses():
     r=route([[0,100],[0,0],[100,0]])
-    note=dict(id='n',point=[0,0],type='right',grade=3,bearing=0,direction='both',lead_m=180,text='右三，别切',reverse_text='左三，别切')
+    note=dict(id='n',point=[0,0],type='right',grade=3,bearing=0,direction='both',lead_m=180,text='право 3, не срезать',reverse_text='лево 3, не срезать')
     forward=[c for c in cues_for(r,[note],'wrc') if c.id=='n'][0]
     reverse=[c for c in cues_for(route(list(reversed(r.points))),[note],'wrc') if c.id=='n'][0]
     assert forward.kind=='right' and forward.grade==3 and not forward.inferred
-    assert reverse.kind=='left' and reverse.text=='左三，别切'
+    assert reverse.kind=='left' and reverse.text=='лево 3, не срезать'
     assert forward.lead_m==180
 
 
@@ -128,9 +128,9 @@ def test_normal_nearby_junctions_use_v062_individual_speech():
     r.junctions=[dict(at=200,delta=0),dict(at=300,delta=90)]
     settings=default_settings();settings.update(lead_m=150,lead_s=0)
     nav=Navigator();nav.start(r,[],settings,1)
-    assert nav.update([100,0],0)['speech']=='前方100米，路口直行'
+    assert nav.update([100,0],0)['speech']=='Через 100 метров прямо'
     assert nav.update([160,0],1)['speech'] is None
-    assert nav.update([220,0],2)['speech']=='前方80米，路口右转'
+    assert nav.update([220,0],2)['speech']=='Через 80 метров поверните направо'
     assert nav.update([260,0],3)['speech'] is None
 
 
@@ -138,11 +138,11 @@ def test_normal_nearby_junctions_use_v062_individual_speech():
 def test_wrong_way_warns_once_and_recovers_without_losing_trip(mode):
     nav=Navigator();settings=default_settings();settings['mode']=mode
     r=route([[0,0],[1000,0]]);nav.start(r,[],settings,1,True)
-    nav.lap=1;nav.leg='返程'
+    nav.lap=1;nav.leg='обратный путь'
     assert nav.update([500,0],0)['state']=='navigating'
     assert nav.update([490,0],1)['state']=='navigating'
     data=nav.update([480,0],2)
-    assert data['state']=='wrongway' and data['cue'].kind=='uturn' and '安全位置掉头' in data['speech']
+    assert data['state']=='wrongway' and data['cue'].kind=='uturn' and 'Развернитесь в безопасном месте' in data['speech']
     assert nav.update([470,0],3)['speech'] is None
     assert nav.update([480,0],4)['state']=='wrongway'
     assert nav.update([490,0],5)['state']=='navigating'
@@ -201,12 +201,12 @@ def test_arrival_uses_actual_goal_before_road_progress_or_offroad_wait():
 def test_offroad_wait_preserves_trip_then_replans_once_near_road():
     nav=Navigator();settings=default_settings();settings['arrival_m']=5
     nav.start(route([[0,0],[500,0]]),[],settings,1,True)
-    nav.lap=1;nav.leg='返程'
+    nav.lap=1;nav.leg='обратный путь'
     nav.update([10,0],0,0);progress=nav.progress
     for t in range(1,12):
         data=nav.update([100,70],t,70)
-        assert data['text']=='请返回道路' and not data['replan'] and data['speech'] is None
-    assert nav.active and nav.progress==progress and nav.lap==1 and nav.leg=='返程'
+        assert data['text']=='Вернитесь на дорогу' and not data['replan'] and data['speech'] is None
+    assert nav.active and nav.progress==progress and nav.lap==1 and nav.leg=='обратный путь'
     assert not nav.update([100,27],12,27)['replan']
     assert nav.update([100,10],13,10)['replan']
     nav.defer_replan([100,10],13)

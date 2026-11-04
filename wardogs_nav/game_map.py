@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QCheckBox,QFormLayout,QKeySequenceEdit,QLineEdit,Q
 from . import hotkeys
 from .bigmap import BigMapOverlay
 from .dialogs import number
+from .ru import count
 from .maps import map_info
 from .routing import nearest_on_route
 from .coordinates import parse_coordinates,format_coordinates,game_to_map,map_to_game
@@ -15,7 +16,7 @@ class GameMapController:
     def init_game_map(self):
         self.big_view=None;self.coordinate_view=None;self.game_window=0;self.big_resume=None
         self.big_tracking=False
-        self.big_message='大地图 · 快捷键就绪';self.big_message_until=0
+        self.big_message='Большая карта · горячие клавиши готовы';self.big_message_until=0
         self.big_overlay=BigMapOverlay(self.settings['bigmap'])
         self.big_overlay.mask_changed.connect(lambda mask:setattr(self.worker,'map_mask',mask))
         self.cursor_timer=QTimer(self);self.cursor_timer.setInterval(100);self.cursor_timer.timeout.connect(self.poll_map_cursor)
@@ -28,15 +29,15 @@ class GameMapController:
         self.worker.action_failed.connect(self.map_feedback)
 
     def build_coordinate_input(self,layout):
-        group=self.group('游戏坐标',layout)
-        group.addWidget(self.text('按顶部选择的地图换算。可输入或粘贴 x87.18, y33.31，也支持 87.18/33.31。',True))
+        group=self.group('Игровые координаты',layout)
+        group.addWidget(self.text('Пересчёт по карте, выбранной вверху. Введите или вставьте x87.18, y33.31; формат 87.18/33.31 тоже подходит.',True))
         self.coordinate_input=QLineEdit();self.coordinate_input.setPlaceholderText('x87.18, y33.31');group.addWidget(self.coordinate_input)
         self.coordinate_action=QComboBox()
-        for action,label in [('destination','设为目的地'),('start','设为起始点'),('waypoint','添加途经点'),('navigate','一键新导航')]:
+        for action,label in [('destination','Сделать целью'),('start','Сделать стартом'),('waypoint','Добавить промежуточную точку'),('navigate','Новая навигация')]:
             self.coordinate_action.addItem(label,action)
-        group.addWidget(self.row(self.coordinate_action,self.button('应用坐标',self.apply_coordinates)))
+        group.addWidget(self.row(self.coordinate_action,self.button('Применить координаты',self.apply_coordinates)))
         self.coordinate_input.returnPressed.connect(self.apply_coordinates)
-        self.coordinate_feedback=self.text('目的地可以提前保存；回到小地图后获取车辆位置并导航。',True);group.addWidget(self.coordinate_feedback)
+        self.coordinate_feedback=self.text('Цель можно задать заранее; после возврата к мини-карте будет определено положение машины и начнётся навигация.',True);group.addWidget(self.coordinate_feedback)
 
     def apply_coordinates(self):
         try:
@@ -46,42 +47,42 @@ class GameMapController:
             self.coordinate_feedback.setText(str(error));return
         action=self.coordinate_action.currentData()
         self.apply_map_action(action,point)
-        self.coordinate_feedback.setText(f'{map_info(self.project["map"])["name"]} · {format_coordinates(game)} · 已应用：{self.coordinate_action.currentText()}')
+        self.coordinate_feedback.setText(f'{map_info(self.project["map"])["name"]} · {format_coordinates(game)} · применено: {self.coordinate_action.currentText()}')
         if action=='navigate':self.start_navigation()
 
     def show_map_coordinates(self,x,y):
-        self.coordinate_label.setText('游戏坐标  '+format_coordinates(map_to_game(self.project['map'],[x,y])))
+        self.coordinate_label.setText('Игровые координаты  '+format_coordinates(map_to_game(self.project['map'],[x,y])))
 
     def build_game_map_settings(self,layout):
-        group=self.group('局内大地图',layout)
-        group.addWidget(self.text('先在游戏中打开大地图，再单独框选地图画面。小地图定位正常时，大地图识别和鼠标读取全部停止。',True))
-        group.addWidget(self.button('框选此屏幕的大地图',lambda:self.select_region(large=True)))
-        self.big_enabled=QCheckBox('启用大地图识别、叠加与快捷键')
+        group=self.group('Большая карта в игре',layout)
+        group.addWidget(self.text('Сначала откройте большую карту в игре, затем отдельно выделите её область. Пока мини-карта определяет положение, распознавание большой карты и чтение мыши не работают.',True))
+        group.addWidget(self.button('Выделить большую карту на этом экране',lambda:self.select_region(large=True)))
+        self.big_enabled=QCheckBox('Включить распознавание большой карты, наложение и горячие клавиши')
         self.big_enabled.setChecked(self.settings['bigmap']['enabled'])
         self.big_enabled.toggled.connect(lambda v:self.big_setting('enabled',v));group.addWidget(self.big_enabled)
-        self.big_roads=QCheckBox('在大地图上显示路网')
+        self.big_roads=QCheckBox('Показывать сеть дорог на большой карте')
         self.big_roads.setChecked(self.settings['bigmap']['show_roads'])
         self.big_roads.toggled.connect(lambda v:self.big_setting('show_roads',v));group.addWidget(self.big_roads)
-        self.coordinate_enabled=QCheckBox('地形未匹配时读取十字坐标')
+        self.coordinate_enabled=QCheckBox('Считывать координаты перекрестия, если рельеф не распознан')
         self.coordinate_enabled.setChecked(self.settings['bigmap']['coordinates'])
         self.coordinate_enabled.toggled.connect(lambda v:self.big_setting('coordinates',v));group.addWidget(self.coordinate_enabled)
-        group.addWidget(self.text('框选范围需包含地图内的十字线及 x/y 文字。坐标模式可设置目标；路线叠加等待地形匹配恢复。操作时让十字停稳，按下快捷键后保持位置直至核准。',True))
+        group.addWidget(self.text('Область должна включать перекрестие на карте и надписи x/y. В режиме координат можно задавать цели; наложение маршрута ждёт восстановления распознавания рельефа. Держите перекрестие неподвижно и после нажатия клавиши не сдвигайте его до подтверждения.',True))
         form=QFormLayout();self.big_fields={}
-        for key,label,lo,hi in [('left','左边 X',-30000,30000),('top','上边 Y',-30000,30000),('width','宽度',60,5000),('height','高度',60,5000)]:
+        for key,label,lo,hi in [('left','Левый край X',-30000,30000),('top','Верхний край Y',-30000,30000),('width','Ширина',60,5000),('height','Высота',60,5000)]:
             field=number(self.settings['bigmap_capture'][key],lo,hi)
             field.valueChanged.connect(lambda v,k=key:self.big_capture_setting(k,v));self.big_fields[key]=field;form.addRow(label,field)
-        for key,label,lo,hi,dec in [('opacity','叠加不透明度',.2,1,2),('line_width','路线线宽 (屏幕像素)',1,10,0),('avoid_radius_m','快捷键危险区半径 (m)',5,500,0)]:
+        for key,label,lo,hi,dec in [('opacity','Непрозрачность наложения',.2,1,2),('line_width','Толщина линии маршрута (пиксели экрана)',1,10,0),('avoid_radius_m','Радиус опасной зоны по клавише (м)',5,500,0)]:
             field=number(self.settings['bigmap'][key],lo,hi,dec)
             field.valueChanged.connect(lambda v,k=key:self.big_setting(k,v));form.addRow(label,field)
         group.addLayout(form)
-        self.big_status=self.text('尚未识别大地图',True);group.addWidget(self.big_status)
+        self.big_status=self.text('Большая карта ещё не распознана',True);group.addWidget(self.big_status)
         form=QFormLayout();self.hotkey_fields={}
         for action,label in hotkeys.ACTIONS.items():
             field=QKeySequenceEdit(QKeySequence(self.settings['bigmap_hotkeys'][action]))
             field.setMaximumSequenceLength(1);self.hotkey_fields[action]=field;form.addRow(label,field)
-        group.addLayout(form);group.addWidget(self.button('保存快捷键',self.save_map_hotkeys))
-        self.hotkey_status=self.text('识别到前台游戏大地图后启用；留空可禁用单项。支持 Ctrl / Alt 与字母、数字、[、] 或 F1–F11；* 支持小键盘乘号或 Shift+8，可单独使用。',True);group.addWidget(self.hotkey_status)
-        group.addWidget(self.text('一键新导航：最后一次小地图定位作为新起始点，鼠标位置作为目的地，并清除旧途经点。上次车辆位置保留至下一次定位或切换地图；尚未定位时，回到小地图后自动补上起始点。修改目的地会保留起始点。',True))
+        group.addLayout(form);group.addWidget(self.button('Сохранить горячие клавиши',self.save_map_hotkeys))
+        self.hotkey_status=self.text('Работают, когда распознана большая карта игры в активном окне; пустое поле отключает действие. Поддерживаются Ctrl / Alt с буквами, цифрами, [, ] или F1–F11; * — умножение на цифровом блоке или Shift+8, можно без модификаторов.',True);group.addWidget(self.hotkey_status)
+        group.addWidget(self.text('Новая навигация: последнее положение по мини-карте становится стартом, точка под мышью — целью, старые промежуточные точки удаляются. Последнее положение машины хранится до следующего определения или смены карты; если положения ещё нет, старт подставится после возврата к мини-карте. При смене цели старт сохраняется.',True))
 
     def save_map_hotkeys(self):
         bindings={key:field.keySequence().toString(QKeySequence.PortableText) for key,field in self.hotkey_fields.items()}
@@ -89,17 +90,17 @@ class GameMapController:
         try:
             for action,text in bindings.items():
                 for binding in hotkeys.hotkey_bindings(text):
-                    if binding in used:raise ValueError('按键重复')
+                    if binding in used:raise ValueError('Клавиша повторяется')
                     used.add(binding)
         except ValueError as error:
-            message=hotkeys.ACTIONS[action]+'：'+str(error)
-            self.hotkey_status.setText(message);self.notify('快捷键未保存：'+message);return
+            message=hotkeys.ACTIONS[action]+': '+str(error)
+            self.hotkey_status.setText(message);self.notify('Горячие клавиши не сохранены: '+message);return
         self.settings['bigmap_hotkeys']=bindings;self.global_hotkeys.configure(bindings);self.save_settings()
-        if not self.global_hotkeys.active:self.hotkey_status.setText('快捷键已保存；识别到前台大地图后启用')
+        if not self.global_hotkeys.active:self.hotkey_status.setText('Горячие клавиши сохранены; заработают, когда будет распознана большая карта в активном окне')
 
     def hotkey_status_changed(self,message):
         self.hotkey_status.setText(message)
-        if '占用' in message or '无法' in message:self.map_feedback(message)
+        if any(word in message.lower() for word in ('занят','не удалось')):self.map_feedback(message)
 
     def big_setting(self,key,value):
         self.settings['bigmap'][key]=value
@@ -140,8 +141,8 @@ class GameMapController:
                 and hotkeys.foreground_window()==self.game_window)
 
     def big_localization(self):
-        if self.coordinate_available():return '大地图坐标 · '+format_coordinates(self.coordinate_view.coordinate.game)
-        return f'大地图识别 · {self.big_view.confidence:.0%}' if self.big_view_available() else '尚未识别大地图'
+        if self.coordinate_available():return 'Координаты большой карты · '+format_coordinates(self.coordinate_view.coordinate.game)
+        return f'Распознавание большой карты · {self.big_view.confidence:.0%}' if self.big_view_available() else 'Большая карта ещё не распознана'
 
     def on_big_map(self,view,frame,actions=None):
         if (not self.worker.capture or not self.settings['bigmap']['enabled'] or view.session!=self.worker.session
@@ -164,22 +165,22 @@ class GameMapController:
         self.fix_live=False;self.minimap_overlay.hide();self.navigator.lost();self.tts.stop()
         self.disconnect_recording()
         self.set_localization(self.big_localization())
-        self.set_hud({'state':'bigmap','text':'大地图操作中'})
-        self.big_status.setText(f'{view.reason} · {view.inliers} 个匹配点' if view.valid else self.big_localization()+' · 快捷键可用')
+        self.set_hud({'state':'bigmap','text':'Работа с большой картой'})
+        self.big_status.setText(f'{view.reason} · {count(view.inliers,"совпадение","совпадения","совпадений")}' if view.valid else self.big_localization()+' · горячие клавиши доступны')
         self.global_hotkeys.set_active(True)
         self.cursor_timer.start()
         self.update_big_overlay()
         if actions:
             for action in actions:
                 if action[0]!=view.session or action[3]!=view.foreground or time.monotonic()-action[4]>=6:
-                    self.map_feedback('操作超时或窗口已切换，请重试');continue
+                    self.map_feedback('Время действия истекло или окно сменилось, повторите');continue
                 if view.valid:point=self.valid_map_point(view.screen_to_map(action[2]))
                 elif view.coordinate.matches(action[2],view.region):point=self.valid_map_point(view.coordinate.point)
                 else:
                     self.worker.retry_actions([action],view.foreground)
-                    self.map_feedback('请保持十字位置，等待坐标核准');continue
+                    self.map_feedback('Не сдвигайте перекрестие, ждите подтверждения координат');continue
                 if point is not None:self.apply_map_action(action[1],point)
-                else:self.map_feedback('鼠标不在有效地图范围内')
+                else:self.map_feedback('Мышь вне допустимой области карты')
 
     def valid_map_point(self,point):
         if point is None:return None
@@ -190,25 +191,25 @@ class GameMapController:
         if not self.game_map_active():
             self.hide_game_map();return
         if self.coordinate_available():
-            self.big_status.setText(self.big_localization()+' · 快捷键可用');return
+            self.big_status.setText(self.big_localization()+' · горячие клавиши доступны');return
         if not self.big_view_fresh():
-            self.big_status.setText('等待大地图识别恢复；快捷键会核准新画面后执行');return
+            self.big_status.setText('Ждём восстановления распознавания большой карты; клавиша сработает после проверки нового кадра');return
         point=hotkeys.physical_cursor()
         mapped=self.valid_map_point(self.big_view.screen_to_map(point)) if point else None
-        if mapped:self.big_status.setText('大地图鼠标 '+format_coordinates(map_to_game(self.project['map'],mapped))+' · 快捷键可用')
-        else:self.big_status.setText('鼠标在大地图区域外')
+        if mapped:self.big_status.setText('Мышь на большой карте '+format_coordinates(map_to_game(self.project['map'],mapped))+' · горячие клавиши доступны')
+        else:self.big_status.setText('Мышь вне области большой карты')
 
     def on_map_hotkey(self,action):
         # This guard precedes the ONLY cursor query in the hotkey path.
         if action not in hotkeys.ACTIONS:return
-        self.hotkey_status.setText('收到快捷键：'+hotkeys.ACTIONS[action])
+        self.hotkey_status.setText('Нажата горячая клавиша: '+hotkeys.ACTIONS[action])
         if not self.game_map_active():
-            self.hotkey_status.setText('收到快捷键，但当前不是前台游戏大地图');return
+            self.hotkey_status.setText('Горячая клавиша нажата, но в активном окне нет большой карты игры');return
         point=hotkeys.physical_cursor()
         region=self.settings['bigmap_capture']
         if point is None or not (region['left']<=point[0]<region['left']+region['width'] and region['top']<=point[1]<region['top']+region['height']):
-            self.map_feedback('鼠标不在大地图框选范围内');return
-        if self.worker.request_action(action,point,self.game_window):self.map_feedback('正在核准鼠标位置…')
+            self.map_feedback('Мышь вне выделенной области большой карты');return
+        if self.worker.request_action(action,point,self.game_window):self.map_feedback('Проверяем положение мыши…')
 
     def map_feedback(self,text):
         self.big_message=text;self.big_message_until=time.monotonic()+2
@@ -218,7 +219,7 @@ class GameMapController:
 
     def update_big_overlay(self):
         if not self.big_view_available():return
-        text=self.big_message if time.monotonic()<self.big_message_until else '大地图 · 快捷键就绪 · 行车播报暂停'
+        text=self.big_message if time.monotonic()<self.big_message_until else 'Большая карта · горячие клавиши готовы · подсказки в пути приостановлены'
         self.big_overlay.update_map(self.big_view,self.project,self.route,self.full_route,
             self.navigator.progress if self.navigator.active else 0,
             self.last_accepted,text)
@@ -234,20 +235,20 @@ class GameMapController:
 
     def apply_map_action(self,action,point):
         if action=='clear':
-            self.clear_current_route();self.map_feedback('路线及起始点已清除');return
+            self.clear_current_route();self.map_feedback('Маршрут и старт удалены');return
         resume=self.resume_context();pending=self.pending_start
         if action=='navigate':
             self.snapshot();self.detach_favorite();self.stop_navigation(quiet=True)
-            self.navigator.lap=0;self.navigator.leg='去程'
+            self.navigator.lap=0;self.navigator.leg='путь туда'
             self.project['start']=list(self.last_accepted) if self.last_accepted is not None else None
             self.project['destination']=point;self.project['waypoints']=[]
             self.changed();self.pending_start=True
-            message='新路线已规划；关闭大地图后开始播报' if self.route else '目的地已设置；回到小地图后定位并规划'
-            if self.project['start'] and not self.route:message='未找到可行路线；请调整目的地或道路规则'
-            self.flash_hud('目标已设置')
+            message='Новый маршрут построен; подсказки начнутся после закрытия большой карты' if self.route else 'Цель задана; после возврата к мини-карте определим положение и построим маршрут'
+            if self.project['start'] and not self.route:message='Проезжий маршрут не найден; измените цель или правила дорог'
+            self.flash_hud('Цель задана')
             self.map_feedback(message);self.hud.show();return
         if action=='undo':
-            if not self.history:self.map_feedback('没有可撤销的标注');return
+            if not self.history:self.map_feedback('Нечего отменять');return
             self.undo()
         else:
             self.snapshot()
@@ -262,7 +263,7 @@ class GameMapController:
         self.big_resume=resume if self.project.get('destination') and self.project.get('start') else None
         self.pending_start=pending and bool(self.project.get('destination'))
         if self.big_resume and self.last_accepted:self.plan_big_resume(self.last_accepted,start=False)
-        self.map_feedback(hotkeys.ACTIONS[action]+'已完成'+(' · 无可行路线，请调整标注' if not self.route and self.project.get('destination') and self.project.get('start') else ''))
+        self.map_feedback(hotkeys.ACTIONS[action]+': готово'+(' · проезжего маршрута нет, измените отметки' if not self.route and self.project.get('destination') and self.project.get('start') else ''))
 
     def plan_big_resume(self,position,start=True):
         resume=self.big_resume
@@ -276,4 +277,4 @@ class GameMapController:
             self.big_resume=None
             if success:
                 self.start_trip_navigation(resume['lap'],resume['leg'])
-            else:self.set_hud({'state':'offroute','text':'无可行路线'})
+            else:self.set_hud({'state':'offroute','text':'Нет проезжего маршрута'})

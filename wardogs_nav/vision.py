@@ -10,7 +10,7 @@ import numpy as np
 def read_image(path: str | Path):
     image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
     if image is None:
-        raise ValueError(f"无法读取图片：{path}")
+        raise ValueError(f"Не удалось прочитать изображение: {path}")
     return image
 
 
@@ -25,7 +25,7 @@ class Fix:
     rotation: float = 0
     heading: float | None = None
     valid: bool = False
-    reason: str = "未定位"
+    reason: str = "Позиция не определена"
     map_id: str | None = None
     generation: int = 0
     session: int | None = None
@@ -40,7 +40,7 @@ class MapViewFix:
     inliers: int = 0
     error: float = 0
     valid: bool = False
-    reason: str = '未识别大地图'
+    reason: str = 'Большая карта не распознана'
     map_id: str | None = None
     generation: int = 0
     session: int = 0
@@ -146,10 +146,10 @@ class Locator:
 
     def locate(self, image, anchor=(.5, .5), north_up=True, path_mask=None):
         if image is None or min(image.shape[:2]) < 60:
-            return Fix(reason="采集区域太小")
+            return Fix(reason="Область захвата слишком мала")
         points, desc = self.sift.detectAndCompute(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), feature_mask(image,path_mask=path_mask))
         if desc is None or len(desc) < 8:
-            return Fix(reason="缺少可匹配地形，请检查截图区域")
+            return Fix(reason="Не хватает рельефа для сопоставления, проверьте область захвата")
         # Track locally after an accepted fix, while retaining global recovery.
         if self.last:
             radius=max(65,max(image.shape[:2])*self.last.scale*1.5)
@@ -165,7 +165,7 @@ class Locator:
 
     def locate_map(self, image, path_mask=None):
         if image is None or min(image.shape[:2])<60:
-            return MapViewFix(reason='大地图区域太小')
+            return MapViewFix(reason='Область большой карты слишком мала')
         h,w=image.shape[:2]
         ratio=min(1.,1100/max(h,w))
         mask=feature_mask(image,minimap=False,path_mask=path_mask)
@@ -174,7 +174,7 @@ class Locator:
             gray=cv2.resize(gray,None,fx=ratio,fy=ratio,interpolation=cv2.INTER_AREA)
             mask=cv2.resize(mask,(gray.shape[1],gray.shape[0]),interpolation=cv2.INTER_NEAREST)
         keypoints,desc=self.sift.detectAndCompute(gray,mask)
-        if desc is None or len(desc)<10:return MapViewFix(reason='大地图缺少可匹配地形')
+        if desc is None or len(desc)<10:return MapViewFix(reason='На большой карте не хватает рельефа для сопоставления')
         pairs=self.matcher.knnMatch(desc,k=2)
         result=self._map_match(pairs,keypoints,ratio,self.points,(w,h))
         drift=0.
@@ -187,7 +187,7 @@ class Locator:
                                    threshold=min(2.5,previous['scale']*5),tracking=True)
             drift=previous['drift']+result.error
             if drift>1.5:
-                result.valid=False;result.reason='请缩小大地图以重新核准地形'
+                result.valid=False;result.reason='Отдалите большую карту, чтобы заново сопоставить рельеф'
         if result.valid:
             pixels=np.float32([p.pt for p in keypoints])/ratio
             self.map_reference=dict(points=pixels@result.matrix[:,:2].T+result.matrix[:,2],
@@ -198,11 +198,11 @@ class Locator:
         good=[m for pair in pairs if len(pair)==2 for m,n in [pair] if m.distance<.76*n.distance]
         # Repeated grid symbols must not count as many independent landmarks.
         good=list({m.trainIdx:m for m in sorted(good,key=lambda m:m.distance,reverse=True)}.values())
-        if len(good)<10:return MapViewFix(reason=f'大地图匹配不足（{len(good)}）')
+        if len(good)<10:return MapViewFix(reason=f'Мало совпадений на большой карте ({len(good)})')
         src=np.float32([keypoints[m.queryIdx].pt for m in good])/ratio
         dst=np.float32([reference[m.trainIdx] for m in good])
         mat,mask=cv2.estimateAffinePartial2D(src,dst,method=cv2.RANSAC,ransacReprojThreshold=threshold,maxIters=5000,confidence=.995)
-        if mat is None:return MapViewFix(reason='无法建立大地图对应关系')
+        if mat is None:return MapViewFix(reason='Не удалось сопоставить большую карту')
         accepted=mask.ravel().astype(bool);count=int(accepted.sum())
         scale=float(np.linalg.norm(mat[:,0]))
         rotation=math.degrees(math.atan2(mat[1,0],mat[0,0]))
@@ -215,18 +215,18 @@ class Locator:
                and .025<scale<8 and abs(rotation)<6
                and 0<=center[0]<self.map_shape[1] and 0<=center[1]<self.map_shape[0])
         return MapViewFix(mat,(w,h),confidence,count,error,bool(valid),
-                          ('大地图缩放跟踪' if tracking else '大地图已识别') if valid else '大地图匹配不可靠')
+                          ('Слежение за масштабом большой карты' if tracking else 'Большая карта распознана') if valid else 'Сопоставление большой карты ненадёжно')
 
     def _match(self,image,points,desc,matcher,reference,anchor,north_up):
         pairs = matcher.knnMatch(desc, k=2)
         good = [m for pair in pairs if len(pair) == 2 for m, n in [pair] if m.distance < .76*n.distance]
         if len(good) < 8:
-            return Fix(reason=f"地形匹配不足（{len(good)}）")
+            return Fix(reason=f"Мало совпадений рельефа ({len(good)})")
         src = np.float32([points[m.queryIdx].pt for m in good])
         dst = np.float32([reference[m.trainIdx] for m in good])
         mat, mask = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=2.5, maxIters=5000, confidence=.995)
         if mat is None:
-            return Fix(reason="无法建立稳定的地图对应关系")
+            return Fix(reason="Не удалось надёжно сопоставить карту")
         valid = mask.ravel().astype(bool)
         count = int(valid.sum())
         scale = float(np.linalg.norm(mat[:, 0]))
@@ -243,4 +243,4 @@ class Locator:
         heading = player_heading(image, anchor)
         if heading is not None:
             heading = (heading + rotation) % 360
-        return Fix(float(x), float(y), confidence, count, error, scale, rotation, heading, bool(ok), "定位成功" if ok else "匹配不可靠，暂停播报")
+        return Fix(float(x), float(y), confidence, count, error, scale, rotation, heading, bool(ok), "Позиция определена" if ok else "Сопоставление ненадёжно, подсказки приостановлены")

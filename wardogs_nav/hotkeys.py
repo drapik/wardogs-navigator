@@ -8,8 +8,8 @@ from PySide6.QtWidgets import QApplication
 from .overlay import native_windows
 
 
-ACTIONS={'navigate':'一键新导航','destination':'修改目的地','start':'修改起始点 / 返程终点',
-         'waypoint':'添加途经点','avoid':'添加危险区','undo':'撤销标注','clear':'清除当前路线'}
+ACTIONS={'navigate':'Новая навигация','destination':'Изменить пункт назначения','start':'Изменить старт / финиш обратного пути',
+         'waypoint':'Добавить промежуточную точку','avoid':'Добавить опасную зону','undo':'Отменить метку','clear':'Сбросить текущий маршрут'}
 DEFAULT_HOTKEYS=dict(zip(ACTIONS,('Ctrl+Alt+N','Ctrl+Alt+D','Ctrl+Alt+S','Ctrl+Alt+W',
                                  'Ctrl+Alt+A','Ctrl+Alt+Z','Ctrl+Alt+C')))
 
@@ -52,14 +52,14 @@ def parse_hotkey(text):
     for part in parts[:-1]:
         if part=='NUM' and parts[-1]=='*':continue
         bit={'CTRL':2,'ALT':1,'SHIFT':4}.get(part)
-        if bit is None or modifiers&bit:raise ValueError('使用 Ctrl / Alt / Shift 与字母、数字或 F1–F11 组合')
+        if bit is None or modifiers&bit:raise ValueError('Используйте Ctrl / Alt / Shift вместе с буквой, цифрой или F1–F11')
         modifiers|=bit
     key=parts[-1]
-    if not modifiers&3 and key!='*':raise ValueError('字母、数字与方括号需搭配 Ctrl 或 Alt；小键盘 * 可单独使用')
+    if not modifiers&3 and key!='*':raise ValueError('Буквы, цифры и квадратные скобки нужно сочетать с Ctrl или Alt; * на цифровой клавиатуре можно использовать отдельно')
     if len(key)==1 and key in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789':vk=ord(key)
     elif key in ('[',']','*'):vk={'[':0xDB,']':0xDD,'*':0x6A}[key]
     elif key.startswith('F') and key[1:].isdigit() and 1<=int(key[1:])<=11:vk=111+int(key[1:])
-    else:raise ValueError('按键支持字母、数字、[、]、* 或 F1–F11')
+    else:raise ValueError('Поддерживаются буквы, цифры, [, ], * и F1–F11')
     return modifiers|0x4000,vk  # MOD_NOREPEAT
 
 
@@ -102,22 +102,22 @@ class GlobalHotkeys(QObject):
         if self.active==active:return
         self.unregister();self.active=active
         if not active:return
-        if not native_windows():self.status.emit('全局快捷键需要 Windows 桌面');return
+        if not native_windows():self.status.emit('Глобальные горячие клавиши работают только в Windows');return
         api=ctypes.WinDLL('user32',use_last_error=True)
         api.RegisterHotKey.argtypes=[wintypes.HWND,ctypes.c_int,wintypes.UINT,wintypes.UINT]
         api.RegisterHotKey.restype=wintypes.BOOL
         used=set();errors=[]
         for index,(action,label) in enumerate(ACTIONS.items()):
             try:bindings=hotkey_bindings(self.bindings.get(action,''))
-            except ValueError as error:errors.append(f'{label}：{error}');continue
+            except ValueError as error:errors.append(f'{label}: {error}');continue
             for alias,binding in enumerate(bindings):
-                if binding in used:errors.append(f'{label}：按键重复');continue
+                if binding in used:errors.append(f'{label}: клавиша повторяется');continue
                 used.add(binding);ident=0x6400+index+alias*len(ACTIONS)
                 if api.RegisterHotKey(None,ident,*binding):
                     self.registered[ident]=action;self.poll_bindings[ident]=binding
-                else:errors.append(f'{label}：按键已被占用或无法注册')
+                else:errors.append(f'{label}: клавиша занята или не регистрируется')
         if self.registered:self.poll_timer.start()
-        self.status.emit('；'.join(errors) if errors else '大地图快捷键已启用')
+        self.status.emit('; '.join(errors) if errors else 'Горячие клавиши большой карты включены')
 
     def emit_action(self,action,source):
         self.last_event=dict(action=action,source=source,received_at=time.time())
