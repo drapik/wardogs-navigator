@@ -141,7 +141,7 @@ class SpeechService(QObject):
         if self.closed or self.busy:
             return False
         key = (language, voice)
-        local = backend == 'local' or (backend == 'system' and key in self.unavailable and language in self.pack.languages())
+        local = backend == 'local' or (backend != 'speechkit' and key in self.unavailable and language in self.pack.languages())
         if not local and backend != 'speechkit' and (self.bridge is None or self.bridge.closed):
             self.bridge = self.bridge_factory()
         self.job = SpeechJob(self.bridge, self.pack, text, language, voice, rate, path, local, backend, self.speechkit)
