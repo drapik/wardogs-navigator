@@ -48,7 +48,7 @@ def test_legacy_road_policy_migrates_to_soft_preferences_without_changing_data()
     assert migrated['policy']['preferences']==dict(major='avoid',minor='avoid',offroad='normal')
     assert validate_project(migrated)==migrated
     migrated['policy']['preferences']['major']='unknown'
-    with pytest.raises(ValueError,match='道路偏好'):validate_project(migrated)
+    with pytest.raises(ValueError,match='(?i)предпочтени'):validate_project(migrated)
 
 
 @pytest.mark.parametrize('zone',[{'point':[50,0],'radius':10},{'shape':'rect','point':[50,0],'width':20,'height':20}])
@@ -59,7 +59,7 @@ def test_danger_regions_force_detour(roads,zone):
 
 
 def test_target_inside_danger_is_rejected(roads):
-    with pytest.raises(RouteError,match='危险区域内'):plan(roads,[[0,0],[50,0]],['major'],avoid=[{'shape':'rect','point':[50,0],'width':20,'height':20}])
+    with pytest.raises(RouteError,match='опасной зоне'):plan(roads,[[0,0],[50,0]],['major'],avoid=[{'shape':'rect','point':[50,0],'width':20,'height':20}])
 
 
 def test_waypoints_are_visited_in_order(roads):
@@ -69,7 +69,7 @@ def test_waypoints_are_visited_in_order(roads):
 
 def test_no_invented_links_across_gap():
     roads=[road('a',[[0,0],[40,0]]),road('b',[[60,0],[100,0]])]
-    with pytest.raises(RouteError,match='不连通'):plan(roads,[[0,0],[100,0]],['major'])
+    with pytest.raises(RouteError,match='не связаны'):plan(roads,[[0,0],[100,0]],['major'])
 
 
 def test_crossing_without_vertex_does_not_imply_junction():
@@ -80,7 +80,7 @@ def test_crossing_without_vertex_does_not_imply_junction():
 
 
 def test_far_target_is_not_silently_connected(roads):
-    with pytest.raises(RouteError,match='过远'):plan(roads,[[0,0],[300,300]],['major'])
+    with pytest.raises(RouteError,match='слишком далеко'):plan(roads,[[0,0],[300,300]],['major'])
 
 
 def test_sample_map_connects_bases_and_supports_danger_detour():

@@ -58,8 +58,8 @@ def test_manual_live_only_loss_break_persistence_and_undo(window,app,tmp_path,mo
     window.on_fix(Fix(x=10,y=100,valid=True),None,False)
     assert window.recorder.state['manual']==[]
     for x in (10,15,20):window.on_fix(Fix(x=x,y=100,valid=True),None,True)
-    window.invalidate_fix('定位丢失')
-    assert '等待有效定位' in window.record_status.text()
+    window.invalidate_fix('Позиция потеряна')
+    assert 'ожидание позиции' in window.record_status.text()
     for x in (40,45,50):window.on_fix(Fix(x=x,y=100,valid=True),None,True)
     window.save_recording()
     data=json.loads((tmp_path/'recordings/ozeti.json').read_text(encoding='utf-8'))
@@ -89,7 +89,7 @@ def test_recording_add_does_not_stop_active_trip(window):
 
 
 def test_deleting_recorded_node_preserves_manual_edit_from_auto_extension(window,app):
-    window.project['roads']=[dict(id='recorded',name='轨迹',kind='offroad',recording='auto',points=[[10,10],[15,12],[20,10]])]
+    window.project['roads']=[dict(id='recorded',name='Трек',kind='offroad',recording='auto',points=[[10,10],[15,12],[20,10]])]
     window.recorder.set_roads(window.project['roads'])
     window.remove_item(('road','recorded',1));app.processEvents()
     assert 'recording' not in window.project['roads'][0]

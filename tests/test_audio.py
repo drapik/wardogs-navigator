@@ -39,16 +39,12 @@ def test_number_grammar(value, zh, en):
     assert number_words(value, 'en-US') == en
 
 
-def test_default_pack_covers_navigation_wrc_and_numbers(tmp_path):
+def test_legacy_chinese_pack_still_renders_its_vocabulary(tmp_path):
     pack = DefaultVoicePack()
     phrases = [('沿当前道路行驶1230米', 'zh-CN'), ('前方2.5公里，路口向右前方', 'zh-CN'),
                ('行驶方向相反，请在安全位置掉头', 'zh-CN'), ('路线已更新', 'zh-CN'),
                ('已到达，请安全掉头，开始返程', 'zh-CN'),
                ('一百米，左三，收紧，接，右六。五十米，急刹车，接，左直角，别切。', 'zh-CN')]
-    for mode in ('normal', 'wrc'):
-        for kind in NOTE_TYPES:
-            for grade in range(1, 7):
-                phrases.append((cue_text(Cue('x', 0, kind, grade, modifiers=list(MODIFIERS)), mode, spoken=True), 'zh-CN'))
     for text, lang in phrases:
         assert pack.segments(text, lang), text
     for lang, text in [('zh-CN', '沿当前道路行驶1230米')]:
@@ -61,7 +57,7 @@ def test_default_pack_covers_navigation_wrc_and_numbers(tmp_path):
 
 def test_unknown_custom_text_never_plays_a_partial_or_different_instruction(tmp_path):
     target = tmp_path / 'no-partial.wav'
-    with pytest.raises(ValueError, match='自定义文字'):
+    with pytest.raises(ValueError, match='не умеет произносить'):
         DefaultVoicePack().render('前方100米，桥梁已经塌陷', 'zh-CN', target)
     assert not target.exists()
 
@@ -72,7 +68,7 @@ def subprocess_bridge(code):
 
 def test_child_exit_is_reported_without_terminating_caller():
     bridge = subprocess_bridge('import sys,os;sys.stdin.readline();os._exit(23)')
-    with pytest.raises(RuntimeError, match='已退出'):
+    with pytest.raises(RuntimeError, match='завершился'):
         bridge.call('voices')
     assert bridge.closed and bridge.process is None
 
@@ -82,7 +78,7 @@ def test_hung_child_is_terminated_on_timeout():
     bridge.start()
     process = bridge.process
     started = time.monotonic()
-    with pytest.raises(RuntimeError, match='超时'):
+    with pytest.raises(RuntimeError, match='не ответил'):
         bridge.call('voices', timeout=.1)
     assert process.poll() is not None
     assert time.monotonic() - started < 4
@@ -104,10 +100,30 @@ def test_service_falls_back_after_child_crash_and_remembers_failed_voice(app, tm
             wait_for(app, lambda: len(ready) == generation + 1 and not service.busy)
             assert ready[-1][1:] == (generation, 'local')
         assert not errors and len(made) == 1
-        assert any('切换默认' in s for s in status)
+        assert any('встроенный пакет' in s for s in status)
     finally:
         service.close()
         app.processEvents()
+
+
+def test_speechkit_mode_never_constructs_a_system_voice_host(app, tmp_path):
+    class Fake:
+        def render(self, text, destination, speed=1.):
+            import wave
+            with wave.open(str(destination), 'wb') as audio:
+                audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(48000); audio.writeframes(b'\0\0' * 10)
+            return False
+    def forbidden():
+        raise AssertionError('SpeechKit mode must not touch SAPI')
+    service = SpeechService(bridge_factory=forbidden, speechkit=Fake())
+    results = []
+    service.ready.connect(lambda *args: results.append(args))
+    try:
+        service.synthesize('Через 300 метров поверните налево', 'ru-RU', '', 0, tmp_path/'sk.wav', 1, 'speechkit')
+        wait_for(app, lambda: bool(results))
+        assert results[0][2] == 'speechkit'
+    finally:
+        service.close()
 
 
 def test_local_mode_never_constructs_a_system_voice_host(app, tmp_path):
@@ -175,7 +191,7 @@ def test_navigation_stop_releases_pending_cues_and_does_not_replay_passed_turn(a
         assert nav.update([100,0], 1)['speech'] == data['speech']
         nav.pending.clear()
         after = nav.update([250,0], 2)
-        assert '右转' not in (after['speech'] or '')
+        assert 'направо' not in (after['speech'] or '')
     finally:
         window.close()
         app.processEvents()

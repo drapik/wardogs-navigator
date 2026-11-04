@@ -93,11 +93,11 @@ def distance_to_roads(point, roads, allowed, avoid=(), extra_route=None):
 
 def build_graph(roads, anchors, allowed, confirmed_only=False, avoid=(), max_snap=45., preferences=None, anchor_roads=None):
     if len(anchors) < 2:
-        raise RouteError('请先设置目的地并完成定位')
+        raise RouteError('Сначала задайте пункт назначения и определите позицию')
     if not allowed:
-        raise RouteError('至少启用一种道路类型')
+        raise RouteError('Включите хотя бы один тип дорог')
     if any(blocked(p,p,z) for p in anchors for z in avoid):
-        raise RouteError('起点、终点或途经点在危险区域内，请调整危险区或目标点')
+        raise RouteError('Старт, финиш или промежуточная точка в опасной зоне. Измените зону или точку')
     segments = []
     for road in roads:
         for a, b in zip(road['points'], road['points'][1:]):
@@ -105,7 +105,7 @@ def build_graph(roads, anchors, allowed, confirmed_only=False, avoid=(), max_sna
                 continue
             segments.append((tuple(a), tuple(b), road))
     if not segments:
-        raise RouteError('当前规则下没有可用道路；可检查道路分类与避让区')
+        raise RouteError('По текущим правилам нет доступных дорог. Проверьте типы дорог и зоны объезда')
     splits = [[(0., a), (1., b)] for a, b, _ in segments]
     ports=[p for road in roads for p in bridge_ports(road)]
     # A spatial index keeps image-derived road networks responsive. It does not
@@ -138,10 +138,10 @@ def build_graph(roads, anchors, allowed, confirmed_only=False, avoid=(), max_sna
             if not any(blocked(projection[1],projection[1],z) for z in avoid):
                 options.append((projection,i))
         if not options:
-            raise RouteError('当前规则下没有可用道路；可检查道路分类与避让区')
+            raise RouteError('По текущим правилам нет доступных дорог. Проверьте типы дорог и зоны объезда')
         (gap, q, t), index = min(options, key=lambda x: x[0][0])
         if gap > max_snap:
-            raise RouteError(f'起终点或途经点距可用道路过远（{gap:.0f} 地图像素），请补画连接路或调整位置')
+            raise RouteError(f'Старт, финиш или промежуточная точка слишком далеко от доступной дороги ({gap:.0f} пикс. карты). Дорисуйте связующую дорогу или сместите точку')
         splits[index].append((t, q))
         snapped.append((q,segments[index][2]))
         gaps.append(gap)
@@ -193,7 +193,7 @@ def plan(roads, anchors, allowed, confirmed_only=False, avoid=(), max_snap=45., 
                     previous[v] = (u, road)
                     heapq.heappush(queue, (new_cost, v))
         if end not in costs:
-            raise RouteError('道路不连通，当前规则和途经点之间无可行路线')
+            raise RouteError('Дороги не связаны: по текущим правилам между точками нет маршрута')
         chain, chain_roads, cur = [end], [], end
         while cur != start:
             cur, road = previous[cur]
@@ -205,7 +205,7 @@ def plan(roads, anchors, allowed, confirmed_only=False, avoid=(), max_snap=45., 
         route_roads.extend(chain_roads)
     points = [nodes[i] for i in route_nodes]
     if len(points) < 2:
-        raise RouteError('起点与终点太近，请选择更远的目的地')
+        raise RouteError('Старт и финиш слишком близко. Выберите пункт назначения подальше')
     result = Route(points, [r['kind'] for r in route_roads], [r['id'] for r in route_roads],
                  sum(distance(a, b) for a, b in zip(points, points[1:])), gaps,
                  0,bridges=[bool(r.get('bridge')) for r in route_roads],

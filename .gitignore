@@ -17,3 +17,4 @@ docs/维护分析.md
 .env.*
 !.env.example
 *.log
+speechkit.json

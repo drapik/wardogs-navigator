@@ -38,7 +38,7 @@ def test_legacy_road_confirmation_migrates_without_losing_geometry(map_id,tmp_pa
     assert current['roads'][0]['points']==before['roads'][0]['points']
     assert all(r['confirmed'] for r in current['roads'])
     assert current['policy']['confirmed_only'] is False
-    path=tmp_path/'共享配置.json';atomic_json(path,current)
+    path=tmp_path/'общие-настройки.json';atomic_json(path,current)
     assert read_project(path)==current
     road=dict(id='legacy',kind='major',confirmed=False,points=[[100,100],[200,100]])
     assert plan([road],[[100,100],[200,100]],['major'],confirmed_only=True).length==100
@@ -98,15 +98,15 @@ def test_clear_current_route_ends_trip_without_losing_saved_data(window,app,monk
     window.fix_live=True;window.fix_time=time.monotonic();window.worker.capture=True
     window.frame=read_image(asset_path('sample_minimap.png'))
     window.project['destination']=[1300,796];assert window.plan_route(quiet=True)
-    saved=saved_route('保留的路线收藏',window.route,build_roads=False)
+    saved=saved_route('Сохраняемый маршрут',window.route,build_roads=False)
     window.project['route_library']=[saved];window.project['active_route_id']=saved['id']
     window.project['active_route_reverse']=False;window.favorite_trip=saved
     window.project['waypoints']=[list(window.route.points[len(window.route.points)//2])]
-    window.project['destinations']=[dict(name='保留的目的地',point=[1300,796])]
+    window.project['destinations']=[dict(name='Сохраняемая цель',point=[1300,796])]
     window.project['avoid']=[dict(shape='rect',point=[450,700],width=30,height=30)]
     window.project['roundtrip']=True;window.project['start']=[505,1245]
     window.navigator.start(window.route,[],window.settings,window.project['meters_per_pixel'],True)
-    window.navigator.lap=1;window.navigator.leg='返程'
+    window.navigator.lap=1;window.navigator.leg='обратный путь'
     window.hud.show();window.update_minimap_overlay();window.refresh_lists();app.processEvents()
     assert window.minimap_overlay.isVisible() and window.worker.path_mask
     if state!='navigating':
@@ -129,7 +129,7 @@ def test_clear_current_route_ends_trip_without_losing_saved_data(window,app,monk
     assert window.hud.isVisible()==(state!='hidden') and 'cue' not in window.hud.data
     assert not window.minimap_overlay.isVisible() and not window.minimap_overlay.points
     assert window.worker.path_mask is None
-    assert '清除' in window.route_label.text() and '选择' in window.route_label.text()
+    assert 'сброшен' in window.route_label.text() and 'выберите' in window.route_label.text()
     # An already queued camera result must not restart the cleared journey.
     window.on_fix(Fix(x=505,y=1245,scale=.4,confidence=1,valid=True),window.frame,True)
     assert not window.navigator.active and window.route is None and not spoken

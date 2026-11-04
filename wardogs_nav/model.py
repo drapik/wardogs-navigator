@@ -7,15 +7,15 @@ import os
 import sys
 import uuid
 
-KINDS = {'major': '大路', 'minor': '小路', 'offroad': '野地 / 越野'}
-ROAD_PREFERENCES = {'prefer': '优先', 'normal': '正常', 'avoid': '尽量避开'}
-NOTE_TYPES = {'left': '左弯', 'right': '右弯', 'straight': '直行',
-              'square_left': '左直角', 'square_right': '右直角',
-              'hairpin_left': '左发卡', 'hairpin_right': '右发卡',
-              'hard_brake': '急刹车', 'brake': '刹车', 'crest': '坡顶',
-              'bump': '颠簸', 'jump': '跳跃', 'narrow': '变窄', 'bridge': '桥梁',
-              'caution': '注意', 'water': '涉水'}
-MODIFIERS = {'long': '长弯', 'tightens': '收紧', 'opens': '放开', 'dont_cut': '别切', 'cut': '可切'}
+KINDS = {'major': 'Главная дорога', 'minor': 'Второстепенная дорога', 'offroad': 'Бездорожье'}
+ROAD_PREFERENCES = {'prefer': 'Предпочитать', 'normal': 'Обычно', 'avoid': 'По возможности избегать'}
+NOTE_TYPES = {'left': 'Левый', 'right': 'Правый', 'straight': 'Прямо',
+              'square_left': 'Левый 90', 'square_right': 'Правый 90',
+              'hairpin_left': 'Левая шпилька', 'hairpin_right': 'Правая шпилька',
+              'hard_brake': 'Резкое торможение', 'brake': 'Торможение', 'crest': 'Гребень',
+              'bump': 'Неровность', 'jump': 'Трамплин', 'narrow': 'Сужение', 'bridge': 'Мост',
+              'caution': 'Осторожно', 'water': 'Брод'}
+MODIFIERS = {'long': 'Длинный', 'tightens': 'Закрывается', 'opens': 'Открывается', 'dont_cut': 'Не резать', 'cut': 'Можно резать'}
 
 
 def uid():
@@ -81,126 +81,126 @@ def load_settings():
 def validate_project(data):
     from .maps import map_info
     if not isinstance(data, dict) or data.get('schema') != 1:
-        raise ValueError('配置版本无效，仅支持 schema=1')
+        raise ValueError('Неверная версия конфигурации, поддерживается только schema=1')
     info=map_info(data.get('map'))
     result = deepcopy(data)
     width, height = info['width'],info['height']
     def point(p):
         if not isinstance(p, (list, tuple)) or len(p) != 2 or any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) for x in p):
-            raise ValueError('坐标必须是两个有限数值')
+            raise ValueError('Координаты должны быть двумя конечными числами')
         if not (0 <= p[0] <= width and 0 <= p[1] <= height):
-            raise ValueError(f"坐标超出 {info['name']} 地图边界")
+            raise ValueError(f"Координаты за границами карты {info['name']}")
     scale = data.get('meters_per_pixel')
     if scale is not None and (isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or not .01 <= scale <= 1000):
-        raise ValueError('距离比例尺无效')
+        raise ValueError('Неверный масштаб расстояний')
     for key in ('roads', 'notes', 'avoid', 'waypoints', 'destinations'):
         if not isinstance(data.get(key), list) or len(data[key]) > 10000:
-            raise ValueError(f'{key} 必须是列表且不超过 10000 项')
+            raise ValueError(f'{key} должен быть списком не длиннее 10000 элементов')
     ids = set()
     for road in data['roads']:
-        if not isinstance(road,dict):raise ValueError('道路必须是对象')
+        if not isinstance(road,dict):raise ValueError('Дорога должна быть объектом')
         if road.get('kind') not in KINDS:
-            raise ValueError('道路分类无效')
+            raise ValueError('Неверный класс дороги')
         if not isinstance(road.get('name'), str) or len(road['name']) > 200:
-            raise ValueError('道路名称无效')
+            raise ValueError('Неверное название дороги')
         if not isinstance(road.get('id'), str) or road['id'] in ids:
-            raise ValueError('道路 ID 缺失或重复')
+            raise ValueError('ID дороги отсутствует или повторяется')
         ids.add(road['id'])
         if not 2 <= len(road.get('points', [])) <= 2000:
-            raise ValueError('每条道路需要 2–2000 个节点')
+            raise ValueError('У каждой дороги должно быть 2–2000 точек')
         for p in road['points']:
             point(p)
         for key in ('bridge','bridge_start','bridge_end'):
-            if not isinstance(road.get(key,False),bool):raise ValueError('桥梁与桥头接地选项必须为布尔值')
+            if not isinstance(road.get(key,False),bool):raise ValueError('Параметры моста и въездов на мост должны быть логическими значениями')
     ids.clear()
     for note in data['notes']:
-        if not isinstance(note,dict):raise ValueError('路书必须是对象')
+        if not isinstance(note,dict):raise ValueError('Подсказка стенограммы должна быть объектом')
         point(note.get('point'))
         if note.get('type') not in NOTE_TYPES or note.get('direction') not in ('both', 'forward', 'reverse'):
-            raise ValueError('路书类型或方向无效')
+            raise ValueError('Неверный тип или направление подсказки')
         if not isinstance(note.get('id'), str) or note['id'] in ids:
-            raise ValueError('路书 ID 缺失或重复')
+            raise ValueError('ID подсказки отсутствует или повторяется')
         ids.add(note['id'])
         if not isinstance(note.get('grade'), int) or not 1 <= note['grade'] <= 6:
-            raise ValueError('弯道等级必须为 1–6')
+            raise ValueError('Степень поворота должна быть от 1 до 6')
         for key in ('bearing', 'lead_m'):
             if not isinstance(note.get(key, 0), (float, int)) or not math.isfinite(note.get(key, 0)):
-                raise ValueError('路书方向角或提前量无效')
+                raise ValueError('Неверный курс или упреждение подсказки')
         for key in ('text','reverse_text'):
             if not isinstance(note.get(key, ''), str) or len(note.get(key, '')) > 300:
-                raise ValueError('路书文字无效或过长')
+                raise ValueError('Текст подсказки неверный или слишком длинный')
         if not 0<=note.get('bearing',0)<=360 or not 0<=note.get('lead_m',0)<=2000:
-            raise ValueError('路书方向角或提前距离超出范围')
+            raise ValueError('Курс или упреждение подсказки вне допустимого диапазона')
         if not isinstance(note.get('modifiers',[]),list) or any(m not in MODIFIERS for m in note.get('modifiers',[])):
-            raise ValueError('路书修饰无效')
+            raise ValueError('Неверные модификаторы подсказки')
     for zone in data['avoid']:
-        if not isinstance(zone,dict):raise ValueError('危险区必须是对象')
+        if not isinstance(zone,dict):raise ValueError('Опасная зона должна быть объектом')
         point(zone.get('point'))
-        if zone.get('shape') not in (None,'circle','rect'):raise ValueError('危险区域形状无效')
+        if zone.get('shape') not in (None,'circle','rect'):raise ValueError('Неверная форма опасной зоны')
         if zone.get('shape')=='rect':
             for dimension in ('width','height'):
                 value=zone.get(dimension)
                 if not isinstance(value,(int,float)) or not math.isfinite(value) or not 1<=value<=max(2000,width,height):
-                    raise ValueError('危险区域尺寸无效')
+                    raise ValueError('Неверный размер опасной зоны')
         elif not isinstance(zone.get('radius'), (int, float)) or not math.isfinite(zone['radius']) or not 1 <= zone['radius'] <= 1000:
-            raise ValueError('避让半径无效')
+            raise ValueError('Неверный радиус объезда')
     for p in data['waypoints']:
         point(p)
     for d in data['destinations']:
-        if not isinstance(d,dict):raise ValueError('目的地必须是对象')
+        if not isinstance(d,dict):raise ValueError('Цель должна быть объектом')
         point(d.get('point'))
         if not isinstance(d.get('name'), str) or len(d['name']) > 200:
-            raise ValueError('目的地名称无效')
+            raise ValueError('Неверное название цели')
     if data.get('destination') is not None:
         point(data['destination'])
     if result.setdefault('start',None) is not None:
         point(result['start'])
     library = result.setdefault('route_library', [])
     if not isinstance(library,list) or len(library)>1000:
-        raise ValueError('路线收藏必须为列表且不超过 1000 条')
+        raise ValueError('Избранные маршруты должны быть списком не длиннее 1000 элементов')
     ids.clear()
     for saved in library:
         if not isinstance(saved,dict) or not isinstance(saved.get('id'),str) or saved['id'] in ids:
-            raise ValueError('收藏路线 ID 缺失或重复')
+            raise ValueError('ID избранного маршрута отсутствует или повторяется')
         ids.add(saved['id'])
         if not isinstance(saved.get('name'),str) or not 1<=len(saved['name'])<=200:
-            raise ValueError('收藏路线名称无效')
+            raise ValueError('Неверное название избранного маршрута')
         pts=saved.get('points')
         if not isinstance(pts,list) or not 2<=len(pts)<=10000:
-            raise ValueError('收藏路线需要 2–10000 个节点')
+            raise ValueError('У избранного маршрута должно быть 2–10000 точек')
         for p in pts:point(p)
         kinds=saved.get('kinds')
         if not isinstance(kinds,list) or len(kinds)!=len(pts)-1 or any(k not in KINDS for k in kinds):
-            raise ValueError('收藏路线各段分类无效')
+            raise ValueError('Неверные классы участков избранного маршрута')
         for key in ('bridges','road_ids'):
             if key in saved:
                 values=saved[key]
                 if not isinstance(values,list) or len(values)!=len(kinds) or any(not isinstance(v,bool if key=='bridges' else str) for v in values):
-                    raise ValueError('收藏道路层级或来源无效')
+                    raise ValueError('Неверный уровень или источник дорог избранного маршрута')
         connections=saved.get('bridge_connections',[])
-        if not isinstance(connections,list) or len(connections)>10000:raise ValueError('收藏桥头接地位置无效')
+        if not isinstance(connections,list) or len(connections)>10000:raise ValueError('Неверные въезды на мост в избранном маршруте')
         for p in connections:point(p)
         for key in ('snap_to_roads','build_roads'):
-            if key in saved and not isinstance(saved[key],bool):raise ValueError('收藏贴路或建路设置无效')
+            if key in saved and not isinstance(saved[key],bool):raise ValueError('Неверные настройки привязки или создания дорог в избранном')
         if 'control_points' in saved:
             controls=saved['control_points']
-            if not isinstance(controls,list) or not 2<=len(controls)<=10000:raise ValueError('收藏粗绘点数量无效')
+            if not isinstance(controls,list) or not 2<=len(controls)<=10000:raise ValueError('Неверное число опорных точек избранного маршрута')
             for p in controls:point(p)
     active=result.get('active_route_id')
     if active is not None and active not in ids:
-        raise ValueError('当前收藏路线不存在')
+        raise ValueError('Текущий избранный маршрут не найден')
     if not isinstance(result.get('active_route_reverse',False),bool):
-        raise ValueError('收藏路线方向无效')
+        raise ValueError('Неверное направление избранного маршрута')
     policy = result.setdefault('policy', {'allowed': ['major', 'minor'], 'confirmed_only': False})
-    if not isinstance(policy,dict):raise ValueError('路线规则必须是对象')
+    if not isinstance(policy,dict):raise ValueError('Правила маршрута должны быть объектом')
     if not isinstance(policy.get('allowed'), list) or any(x not in KINDS for x in policy['allowed']):
-        raise ValueError('路线规则无效')
+        raise ValueError('Неверные правила маршрута')
     preferences=policy.get('preferences')
     if preferences is None:
         # Old unchecked types become a soft avoidance, so short connectors work.
         preferences={k:'normal' if k in policy['allowed'] else 'avoid' for k in KINDS}
     if not isinstance(preferences,dict) or set(preferences)!=set(KINDS) or any(not isinstance(v,str) or v not in ROAD_PREFERENCES for v in preferences.values()):
-        raise ValueError('道路偏好无效')
+        raise ValueError('Неверные предпочтения дорог')
     policy['preferences']=preferences
     policy['allowed']=list(KINDS)
     # Keep schema-1 compatibility fields, but road availability no longer has
@@ -209,13 +209,13 @@ def validate_project(data):
         road['confirmed']=True
     policy['confirmed_only']=False
     if not isinstance(result.get('roundtrip', False), bool):
-        raise ValueError('往返模式无效')
+        raise ValueError('Неверный режим «туда и обратно»')
     return result
 
 
 def read_project(path):
     if Path(path).stat().st_size > 15_000_000:
-        raise ValueError('配置文件过大')
+        raise ValueError('Файл конфигурации слишком большой')
     return validate_project(json.loads(Path(path).read_text(encoding='utf-8')))
 
 

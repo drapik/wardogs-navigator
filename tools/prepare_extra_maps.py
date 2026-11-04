@@ -36,7 +36,7 @@ def prepare(map_id,stage):
         atomic_json(ROOT/'assets/maps.json',registry)
         if not (assets/'project.json').exists():
             data=dict(schema=1,map=map_id,meters_per_pixel=metadata['meters_per_pixel'],road_data_revision=1,
-                      calibration={'source':'公开地图瓦片边界与裁剪比例','status':'公开地图比例尺；可用游戏内两点复核'},
+                      calibration={'source':'Границы открытых тайлов карты и пропорции обрезки','status':'Масштаб открытой карты; можно перепроверить по двум точкам в игре'},
                       roads=[],notes=[],avoid=[],waypoints=[],destinations=[],destination=None,
                       roundtrip=False,policy={'allowed':['major','minor'],'confirmed_only':False},route_library=[])
             atomic_json(assets/'project.json',data)

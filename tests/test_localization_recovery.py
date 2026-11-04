@@ -80,7 +80,7 @@ def test_live_worker_recovers_after_frame_failure(window,app,monkeypatch,roundtr
         assert window.worker.capture and window.worker.isRunning()
         assert not window.fix_live and '100%' not in window.fix_label.text()
         assert window.map.player_item is None and not window.minimap_overlay.isVisible()
-        assert window.capture_button.text()=='关闭定位'
+        assert window.capture_button.text()=='Выключить позиционирование'
         assert window.navigator.active and window.navigator.last_point is None
         recover_now.set()
         until(app,lambda:source.count>=3 and window.fix_live)
@@ -109,10 +109,10 @@ def test_fatal_error_clears_old_fix_and_frame(window):
     window.worker.capture=True
     window.on_fix(good_fix(window.worker),np.ones((80,80,3),np.uint8),True)
     window.worker.capture=False
-    window.worker_error('地图特征初始化失败','ozeti',0)
+    window.worker_error('Не удалось инициализировать признаки карты','ozeti',0)
     assert not window.fix.valid and not window.fix_live and window.frame is None
     assert window.map.player_item is None and '100%' not in window.fix_label.text()
-    assert window.capture_button.text()=='开启定位'
+    assert window.capture_button.text()=='Включить позиционирование'
 
 
 def test_failed_frame_is_saved_after_recovery(window,tmp_path,monkeypatch):
@@ -122,7 +122,7 @@ def test_failed_frame_is_saved_after_recovery(window,tmp_path,monkeypatch):
     failure=Fix(reason='synthetic locate failure',map_id='ozeti',generation=0)
     window.on_fix(failure,failed,True)
     window.on_fix(good_fix(window.worker),np.full_like(failed,99),True)
-    target=tmp_path/'失败帧.png'
+    target=tmp_path/'Сбойный кадр.png'
     monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a,**k:(str(target),''))
     window.save_capture_diagnostic()
     saved=cv2.imdecode(np.fromfile(str(target),np.uint8),cv2.IMREAD_COLOR)
@@ -138,7 +138,7 @@ def test_capture_failure_without_frame_saves_only_json(window,tmp_path,monkeypat
     window.on_fix(good_fix(window.worker),np.ones((80,80,3),np.uint8),True)
     window.on_fix(Fix(reason='capture unavailable',map_id='ozeti'),None,True)
     assert window.frame is None and not window.fix.valid
-    target=tmp_path/'截图失败.json'
+    target=tmp_path/'Сбой снимка.json'
     monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a,**k:(str(target),''))
     window.save_capture_diagnostic()
     metadata=json.loads(target.read_text(encoding='utf-8'))
@@ -201,7 +201,7 @@ def test_recovery_near_arrival_keeps_journey_and_return_leg(window,roundtrip):
     for _ in range(2):window.on_fix(good_fix(window.worker,200,100),frame,True)
     assert window.project['destination']==[200,100] and window.project['start']==[100,100]
     if roundtrip:
-        assert window.navigator.active and window.navigator.lap==1 and window.navigator.leg=='返程'
+        assert window.navigator.active and window.navigator.lap==1 and window.navigator.leg=='обратный путь'
         assert window.route.points[-1]==pytest.approx([100,100])
     else:assert not window.navigator.active and window.hud.data['state']=='arrived'
 
@@ -212,19 +212,19 @@ def test_hud_localization_recovers_without_starting_navigation(window):
     assert window.hud.data['state']=='lost'
     window.on_fix(good_fix(window.worker),frame,True)
     assert not window.navigator.active and window.hud.data['state']=='idle'
-    assert window.hud.localization_text==window.fix_label.text()=='实时定位 · 100%'
+    assert window.hud.localization_text==window.fix_label.text()=='Положение в реальном времени · 100%'
 
 
 def test_capture_restart_restores_hud_title_without_navigation(window):
     frame=np.zeros((80,80,3),np.uint8)
     window.worker.capture=True;window.toggle_capture()
-    assert window.hud.data['text']=='定位已关闭'
+    assert window.hud.data['text']=='Позиционирование выключено'
     window.toggle_capture()
     assert window.hud.data['state']=='locating'
     window.on_fix(good_fix(window.worker),frame,True)
     assert window.fix_live and not window.navigator.active
-    assert window.hud.data['text']=='待机中'
-    assert window.hud.localization_text==window.fix_label.text()=='实时定位 · 100%'
+    assert window.hud.data['text']=='Ожидание'
+    assert window.hud.localization_text==window.fix_label.text()=='Положение в реальном времени · 100%'
 
 
 def test_failed_replan_waits_and_resumes_same_return_trip(window,monkeypatch):
@@ -232,7 +232,7 @@ def test_failed_replan_waits_and_resumes_same_return_trip(window,monkeypatch):
                           start=[100,100],destination=[600,100],waypoints=[[250,100]],meters_per_pixel=1,roundtrip=True)
     window.fix=Fix(x=500,y=100,valid=True);window.fix_live=True
     assert window.plan_route(quiet=True,anchors=[[500,100],[250,100],[100,100]])
-    window.start_trip_navigation(1,'返程');saved=deepcopy(window.project)
+    window.start_trip_navigation(1,'обратный путь');saved=deepcopy(window.project)
     original=window.plan_route;calls=[]
     def recorded(*args,**kwargs):calls.append(kwargs.get('anchors'));return original(*args,**kwargs)
     monkeypatch.setattr(window,'plan_route',recorded)
@@ -244,7 +244,7 @@ def test_failed_replan_waits_and_resumes_same_return_trip(window,monkeypatch):
     assert window.navigator.update([500,110],time.monotonic()+21,10)['replan']
     window.fix=Fix(x=500,y=110,valid=True);window.replan_navigation()
     assert not window.navigator.waiting_for_road and window.navigator.active
-    assert window.navigator.lap==1 and window.navigator.leg=='返程' and window.project==saved
+    assert window.navigator.lap==1 and window.navigator.leg=='обратный путь' and window.project==saved
     assert calls[-1]==[[500,110],[250,100],[100,100]]
     assert window.route.points[-1]==pytest.approx([100,100])
 
@@ -289,7 +289,7 @@ def test_worker_initialization_failure_is_terminal(app,monkeypatch):
     worker.start()
     try:
         until(app,lambda:bool(errors))
-        assert not worker.capture and '地图特征初始化失败' in errors[0][0]
+        assert not worker.capture and 'Не удалось инициализировать признаки карты' in errors[0][0]
     finally:worker.shutdown()
 
 

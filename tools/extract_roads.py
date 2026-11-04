@@ -160,17 +160,17 @@ def main():
         simple=cv2.approxPolyDP(np.float32(points),.6,False)[:,0].round(2).tolist()
         width_m=float(np.median([dist[y,x] for y,x in e['pixels']]))*5.357
         kind='major' if width_m>=12 else 'minor'
-        roads.append({'id':f'clean-{len(roads)+1:03}','name':f'图像道路 {len(roads)+1:03}','kind':kind,'confirmed':False,'note':f'干净底图滤镜提取；估计图上路宽 {width_m:.1f} 米，路级与通行性待实测','points':simple})
+        roads.append({'id':f'clean-{len(roads)+1:03}','name':f'Дорога по снимку {len(roads)+1:03}','kind':kind,'confirmed':False,'note':f'Извлечено фильтром чистой подложки; ширина по карте около {width_m:.1f} м, класс дороги и проходимость не проверены','points':simple})
         cv2.polylines(preview,[np.int32(simple)],False,(40,205,250) if kind=='major' else (225,173,95),1,cv2.LINE_AA)
-    repairs=[('西北桥接入','minor',[[375,350],[376,365],[372,385]]),
-      ('西部干道接入','major',[[173,630],[213,640],[268,655]]),
-      ('西南跨河桥','minor',[[439,710],[428,730],[408,758]]),
-      ('中部斜桥','major',[[664,711],[680,737],[696,765]]),
-      ('中部直桥','minor',[[765,710],[764,734],[765,767]]),
-      ('东部跨河桥','major',[[1380,807],[1400,827],[1425,846]]),
-      ('南基地出口','minor',[[481,1208],[482,1230],[481,1255]]),
-      ('南基地东北出口','minor',[[481,1255],[494,1250],[505,1241],[525,1223],[534,1208],[534,1184],[530,1160],[537,1137],[545,1114]]),
-      ('西南地图边界接入','minor',[[84,734],[73,765],[75,803]])]
+    repairs=[('Подъезд к северо-западному мосту','minor',[[375,350],[376,365],[372,385]]),
+      ('Подъезд к западной магистрали','major',[[173,630],[213,640],[268,655]]),
+      ('Юго-западный мост через реку','minor',[[439,710],[428,730],[408,758]]),
+      ('Центральный косой мост','major',[[664,711],[680,737],[696,765]]),
+      ('Центральный прямой мост','minor',[[765,710],[764,734],[765,767]]),
+      ('Восточный мост через реку','major',[[1380,807],[1400,827],[1425,846]]),
+      ('Выезд с южной базы','minor',[[481,1208],[482,1230],[481,1255]]),
+      ('Северо-восточный выезд с южной базы','minor',[[481,1255],[494,1250],[505,1241],[525,1223],[534,1208],[534,1184],[530,1160],[537,1137],[545,1114]]),
+      ('Подъезд от юго-западной границы карты','minor',[[84,734],[73,765],[75,803]])]
     def snap(p):
         gap,q,_=min((project(p,a,b) for r in roads for a,b in zip(r['points'],r['points'][1:])),key=lambda v:v[0])
         return list(q) if gap<16 else p
@@ -178,11 +178,11 @@ def main():
         points[0]=snap(points[0]);points[-1]=snap(points[-1])
         traced=trace_gap(pavement,points)
         traced[0]=points[0];traced[-1]=points[-1]
-        roads.append({'id':f'clean-{len(roads)+1:03}','name':name,'kind':kind,'confirmed':False,'note':'已核对图上接入口与桥位，中心线沿铺装滤镜寻路；实际通行性待实测','points':traced})
+        roads.append({'id':f'clean-{len(roads)+1:03}','name':name,'kind':kind,'confirmed':False,'note':'Подъезды и мосты сверены по карте, осевая линия проложена по фильтру покрытия; проходимость не проверена','points':traced})
         cv2.polylines(preview,[np.int32(traced)],False,(100,250,100),1,cv2.LINE_AA)
-    for name,points in [('东南开阔地候选',[[1200,949],[1169,931],[1136,910],[1107,889],[1080,867]]),('南部农田候选',[[562,1000],[587,1020],[611,1040],[637,1052]])]:
+    for name,points in [('Кандидат: юго-восточная равнина',[[1200,949],[1169,931],[1136,910],[1107,889],[1080,867]]),('Кандидат: южные поля',[[562,1000],[587,1020],[611,1040],[637,1052]])]:
         points[0]=snap(points[0]);points[-1]=snap(points[-1])
-        roads.append({'id':f'clean-{len(roads)+1:03}','name':name,'kind':'offroad','confirmed':False,'note':'图上树木较少的候选方向；坡度、地表与通行性未实测，默认禁用；不能判断地雷','points':points})
+        roads.append({'id':f'clean-{len(roads)+1:03}','name':name,'kind':'offroad','confirmed':False,'note':'Кандидат по карте, где мало деревьев; уклон, покрытие и проходимость не проверены, по умолчанию отключено; мины определить нельзя','points':points})
     report={'roads':roads,'water_exclusions':rivers,'bridges':bridges}
     (ROOT/'research/extracted-roads.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     cv2.imwrite(str(ROOT/'research/road-candidates.png'),preview)

@@ -6,6 +6,9 @@ import time
 from PySide6.QtCore import QObject, Signal, QTimer
 from .player import FilePlayer, find_device
 from .speech import SpeechService
+from .speechkit import configured as speechkit_configured
+
+LANGUAGE = 'ru-RU'
 
 
 class NavigationSpeech(QObject):
@@ -42,16 +45,22 @@ class NavigationSpeech(QObject):
         self.closed = False
 
     def load_voices(self):
-        if self.settings.get('voice_backend', 'auto') == 'local':
-            self.status.emit('默认本地语音包 · 无需 Windows 语音')
-        else:
+        backend = self.backend()
+        if backend == 'speechkit' or (backend == 'auto' and speechkit_configured()):
+            self.status.emit('Голос Yandex SpeechKit · фразы кэшируются')
+        if backend != 'speechkit':
             self.service.load_voices()
+
+    def backend(self):
+        backend = self.settings.get('voice_backend', 'auto')
+        # The Chinese-only offline pack cannot speak Russian prompts.
+        return 'auto' if backend == 'local' else backend
 
     def enqueue(self, text, receipt=None):
         if self.closed or len(self.queue) >= 8:
             self.cancelled.emit(receipt)
             return False
-        key = (text, self.settings.get('voice_backend', 'auto'), self.settings.get('voice_name', ''))
+        key = (text, self.backend(), self.settings.get('voice_name', ''))
         if key in self.failed_texts:
             self.cancelled.emit(receipt)
             return False
@@ -69,9 +78,9 @@ class NavigationSpeech(QObject):
                 continue
             self.current = item
             path = Path(self.temp.name) / f'speech-{self.generation}.wav'
-            self.service.synthesize(item[0], 'zh-CN', self.settings.get('voice_name', ''),
+            self.service.synthesize(item[0], LANGUAGE, self.settings.get('voice_name', ''),
                 round(self.settings.get('voice_rate', 0) * 10), path, self.generation,
-                self.settings.get('voice_backend', 'auto'))
+                self.backend())
             break
 
     def _ready(self, path, generation, provider):
@@ -84,8 +93,9 @@ class NavigationSpeech(QObject):
         try:
             self.player.configure(find_device(default=True), self.volume)
             rate = 2 ** max(-1., min(1., self.settings.get('voice_rate', 0))) if provider == 'local' else 1.
-            error = self.service.unavailable.get(('zh-CN', self.settings.get('voice_name', '')))
-            self.status.emit(('默认本地语音包 · 播报中' + ('\n系统语音错误：' + error if error else '')) if provider == 'local' else '系统语音 · 独立进程播报')
+            error = self.service.unavailable.get((LANGUAGE, self.settings.get('voice_name', '')))
+            self.status.emit({'speechkit': 'Yandex SpeechKit · озвучка', 'local': 'Встроенный голосовой пакет · озвучка'}.get(
+                provider, 'Системный голос Windows · озвучка') + ('\n' + error if error else ''))
             self.player.play(path, rate=rate)
         except Exception as exc:
             self._play_failed(str(exc))
@@ -96,7 +106,7 @@ class NavigationSpeech(QObject):
 
     def _play_failed(self, message):
         if self.current:
-            self.failed_texts.add((self.current[0], self.settings.get('voice_backend', 'auto'), self.settings.get('voice_name', '')))
+            self.failed_texts.add((self.current[0], self.backend(), self.settings.get('voice_name', '')))
         self.stop()
         self.status.emit(message)
 
@@ -112,7 +122,7 @@ class NavigationSpeech(QObject):
 
     def _tick(self):
         if self.current and time.monotonic() - self.current[2] > 60:
-            self._play_failed('播报超时，已停止')
+            self._play_failed('Озвучка не уложилась в отведённое время и остановлена')
 
     @staticmethod
     def _valid(receipt):

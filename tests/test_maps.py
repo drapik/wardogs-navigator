@@ -34,11 +34,11 @@ def test_map_switch_preserves_each_project_and_remembers_selection(window,app,tm
     for index,mid in enumerate(['ozeti','bakurani','zestafona']):
         window.map_combo.setCurrentIndex(window.map_combo.findData(mid));app.processEvents()
         assert window.project['map']==mid
-        window.project['roads'][0]['name']='自绘道路 '+mid
+        window.project['roads'][0]['name']='Своя дорога '+mid
         window.project['destination']=[100+index,200]
         window.project['avoid']=[dict(shape='rect',point=[400,400],width=30,height=20)]
         window.project['notes']=[dict(id='note',type='left',grade=3,point=[400,420],direction='both')]
-        window.project['route_library']=[dict(id='route',name='收藏 '+mid,points=[[20,20],[30,20]],kinds=['offroad'])]
+        window.project['route_library']=[dict(id='route',name='Избранное '+mid,points=[[20,20],[30,20]],kinds=['offroad'])]
         window.project['meters_per_pixel']=2.+index
         window.project['policy']['preferences']={'major':'avoid','minor':'prefer','offroad':'avoid'}
         snapshots[mid]=validate_project(window.project)
@@ -74,7 +74,7 @@ def test_switch_stops_navigation_and_discards_inflight_results_even_after_return
     assert window.switch_map('ozeti')
     label=window.fix_detail.text();status=window.statusBar().currentMessage()
     window.on_fix(Fix(x=50,y=50,valid=True,map_id='ozeti',generation=0),frame,False)
-    window.worker_ready('ozeti',0);window.worker_error('旧地图错误','ozeti',0)
+    window.worker_ready('ozeti',0);window.worker_error('Ошибка старой карты','ozeti',0)
     assert window.fix is None and window.fix_detail.text()==label
     assert window.statusBar().currentMessage()==status
     mid,generation=window.worker.context
@@ -85,14 +85,14 @@ def test_switch_stops_navigation_and_discards_inflight_results_even_after_return
 def test_full_config_import_switches_map_and_libraries_reject_wrong_map(window,tmp_path,monkeypatch):
     ozeti=deepcopy(window.project)
     bak=read_project(map_asset('bakurani','project'));bak['destination']=[1800,1800]
-    path=tmp_path/'另一张地图.json';atomic_json(path,bak)
+    path=tmp_path/'Другая карта.json';atomic_json(path,bak)
     monkeypatch.setattr(QFileDialog,'getOpenFileName',lambda *a,**k:(str(path),''))
     window.import_project()
     assert window.project==bak and window.map_combo.currentData()=='bakurani'
     assert load_map_project('ozeti')==ozeti
     for kind in ('roads','routes'):
         payload=library_payload(bak,kind);assert payload['map']=='bakurani'
-        with pytest.raises(ValueError,match='地图'):merge_library(ozeti,payload,kind)
+        with pytest.raises(ValueError,match='карт'):merge_library(ozeti,payload,kind)
     assert window.switch_map('ozeti') and window.project==ozeti
 
 
@@ -114,7 +114,7 @@ def test_new_map_supports_drawing_and_dragging_beyond_ozeti_bounds(window,app):
     assert window.project['destination']==pytest.approx([1950,1900],abs=8)
     assert validate_project(window.project)['map']=='bakurani'
     window.project['destination']=[2050,1900]
-    with pytest.raises(ValueError,match='边界'):validate_project(window.project)
+    with pytest.raises(ValueError,match='границами'):validate_project(window.project)
 
 
 @pytest.mark.parametrize('mid',['bakurani','zestafona'])
@@ -150,7 +150,7 @@ def test_new_map_main_roads_connect_and_favorites_keep_geometry(mid,anchors):
         route=plan(p['roads'],[start,end],p['policy']['allowed'])
         assert len(route.points)>10 and route.length>distance(start,end)*.8
         assert max(route.snap_distances)<45
-    saved=saved_route('跨区运输',route);p['route_library']=[saved]
+    saved=saved_route('Перевозка через районы',route);p['route_library']=[saved]
     payload=library_payload(p,'routes');assert payload['map']==mid
     restored,count,_=merge_library(read_project(map_asset(mid,'project')),payload,'routes')
     assert count==1

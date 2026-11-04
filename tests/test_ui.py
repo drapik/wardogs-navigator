@@ -46,7 +46,7 @@ def test_navigation_settings_and_soft_road_preferences_survive_restart(window,tm
     from PySide6.QtWidgets import QGroupBox
     from wardogs_nav.model import load_settings
     titles={g.title() for g in window.findChildren(QGroupBox)}
-    assert {'常规导航设置','WRC 路书设置','通用驾驶提示'}<=titles
+    assert {'Обычная навигация','Стенограмма WRC','Общие подсказки'}<=titles
     window.navigation_fields['lead_m'].setValue(240)
     window.wrong_way_check.setChecked(False)
     loaded=load_settings()
@@ -85,7 +85,7 @@ def test_bridge_editor_and_drag_keep_ground_crossing_separate(window,app,monkeyp
     monkeypatch.setattr(RoadDialog,'exec',edit)
     window.refresh_lists();window.road_list.setCurrentRow(0);window.edit_road();app.processEvents()
     assert window.project['roads'][0]['bridge'] and window.project['roads'][0]['bridge_start']
-    assert '[桥梁]' in window.road_list.item(0).text()
+    assert '[мост]' in window.road_list.item(0).text()
     window.move_item(('road','deck',1),[220,110]);app.processEvents()
     assert window.project['roads'][0]['points'][1]==[220,110]
     assert window.project['roads'][1]['points'][1]==[200,100]
@@ -115,7 +115,7 @@ def test_return_leg_targets_original_home_after_replan(window,app):
     assert window.plan_route()
     window.project['start']=[505,1245];window.project['roundtrip']=True
     window.navigator.start(window.route,[],window.settings,window.project['meters_per_pixel'],True)
-    window.navigator.lap=1;window.navigator.leg='返程'
+    window.navigator.lap=1;window.navigator.leg='обратный путь'
     window.fix=Fix(x=1300,y=796,valid=True)
     window.next_leg()
     assert window.navigator.active and distance(window.route.points[-1],window.project['start'])<1
@@ -125,8 +125,8 @@ def test_return_leg_targets_original_home_after_replan(window,app):
 def test_export_roundtrip_preserves_customization(window,tmp_path):
     from wardogs_nav.model import atomic_json
     window.project['avoid'].append({'shape':'rect','point':[1000,900],'width':70,'height':50})
-    window.project['notes'].append(dict(id='user-note',point=[505,1245],type='right',grade=3,bearing=90,direction='both',lead_m=200,text='右三',reverse_text='左三'))
-    path=tmp_path/'中文配置.json';atomic_json(path,window.project)
+    window.project['notes'].append(dict(id='user-note',point=[505,1245],type='right',grade=3,bearing=90,direction='both',lead_m=200,text='правый три',reverse_text='левый три'))
+    path=tmp_path/'русские-настройки.json';atomic_json(path,window.project)
     loaded=read_project(path)
     assert loaded==window.project
 
@@ -153,7 +153,7 @@ def test_draw_road_using_map_and_property_dialog(window,app,kind):
     assert len(window.map.draft)==3
     window.undo_draw_point();assert len(window.map.draft)==2
     def accept_road():
-        dialog=app.activeModalWidget();dialog.name.setText('手绘测试道路');dialog.accept()
+        dialog=app.activeModalWidget();dialog.name.setText('Тестовая нарисованная дорога');dialog.accept()
     QTimer.singleShot(0,accept_road);window.finish_road();app.processEvents()
     assert len(window.project['roads'])==count+1
     assert window.project['roads'][-1]['kind']==kind and window.project['roads'][-1]['confirmed']
@@ -167,12 +167,12 @@ def test_draw_favorite_export_import_and_load(window,app,tmp_path,monkeypatch):
         QTest.mouseClick(window.map.viewport(),Qt.LeftButton,pos=window.map.mapFromScene(QPointF(*p)))
     def accept_name():
         dialog=app.activeModalWidget();assert isinstance(dialog,QInputDialog)
-        dialog.setTextValue('跨野地补给');dialog.accept()
+        dialog.setTextValue('Снабжение через бездорожье');dialog.accept()
     QTimer.singleShot(0,accept_name);window.finish_road();app.processEvents()
     saved=window.project['route_library'][0]
-    assert saved['name']=='跨野地补给' and saved['kinds']==['major','offroad']
+    assert saved['name']=='Снабжение через бездорожье' and saved['kinds']==['major','offroad']
     assert len(window.project['roads'])==2 and all(r['confirmed'] for r in window.project['roads'])
-    path=tmp_path/'路线收藏.json'
+    path=tmp_path/'маршруты.json'
     monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a,**k:(str(path),''))
     window.export_library('routes');assert read_project(path)['route_library']==[saved]
     original_destination=window.project['destination']
@@ -192,7 +192,7 @@ def test_save_favorite_during_navigation_keeps_running(window,app):
     assert window.plan_route()
     window.navigator.start(window.route,[],window.settings,window.project['meters_per_pixel'])
     def accept_name():
-        dialog=app.activeModalWidget();dialog.setTextValue('当前补给线');dialog.accept()
+        dialog=app.activeModalWidget();dialog.setTextValue('Текущая линия снабжения');dialog.accept()
     QTimer.singleShot(0,accept_name);window.save_current_route()
     assert window.navigator.active and window.route
     assert window.project['route_library'][0]['points']==[list(p) for p in window.route.points]
@@ -204,11 +204,11 @@ def test_favorite_return_after_replan_uses_original_full_journey(window,app):
     def road(id,points):return dict(id=id,name=id,kind='major',confirmed=True,points=points)
     window.project['roads']=[road('long',[[10,10],[10,110],[110,110],[110,10]]),road('short',[[10,10],[110,10]])]
     route=Route([[10,10],[10,110],[110,110],[110,10]],['major']*3,['long']*3,300,[0,0],0)
-    saved=saved_route('环行补给',route);window.project['route_library']=[saved];window.project['active_route_id']=saved['id']
+    saved=saved_route('Кольцевое снабжение',route);window.project['route_library']=[saved];window.project['active_route_id']=saved['id']
     window.project['destination']=[110,10];window.project['roundtrip']=True
     window.fix=Fix(x=10,y=10,valid=True);window.fix_live=True;window.begin_navigation()
     assert window.favorite_trip and window.route.length==pytest.approx(300)
     window.fix=Fix(x=10,y=80,valid=True);window.replan_navigation()
     assert window.route.length==pytest.approx(230)
-    window.fix=Fix(x=110,y=10,valid=True);window.navigator.lap=1;window.navigator.leg='返程';window.next_leg()
+    window.fix=Fix(x=110,y=10,valid=True);window.navigator.lap=1;window.navigator.leg='обратный путь';window.next_leg()
     assert window.route.length==pytest.approx(300) and distance(window.route.points[-1],[10,10])<1

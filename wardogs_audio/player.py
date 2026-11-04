@@ -15,7 +15,7 @@ def find_device(identifier='', *, default=False):
     for device in QMediaDevices.audioOutputs():
         if device_id(device) == identifier:
             return device
-    raise ValueError('所选音频设备已断开，请重新选择输出 / 监听设备')
+    raise ValueError('Выбранное аудиоустройство отключено, выберите вывод или мониторинг заново')
 
 
 class FilePlayer(QObject):
@@ -74,7 +74,7 @@ class FilePlayer(QObject):
     def _error(self, name, message):
         if self.active:
             self.stop()
-            self.failed.emit(('监听失败：' if name == 'monitor' else '播放失败：') + message)
+            self.failed.emit(('Ошибка мониторинга: ' if name == 'monitor' else 'Ошибка воспроизведения: ') + message)
 
     def stop(self):
         self.active = False

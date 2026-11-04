@@ -52,7 +52,7 @@ def test_coordinate_only_hotkey_uses_new_frame_and_waits_for_vehicle(window,monk
     window.on_big_map(view,None,actions)
     assert window.project['destination']==[300,100] and window.project['start'] is None
     assert window.pending_start and not window.navigator.active
-    assert window.hud.data['text']=='目标已设置'
+    assert window.hud.data['text']=='Цель задана'
     mini(window)
     assert window.project['start']==[100,100] and window.navigator.active
     assert window.coordinate_view is None and not window.global_hotkeys.active
@@ -65,7 +65,7 @@ def test_coordinate_action_waits_when_mouse_moved(window,monkeypatch):
     view=coordinate_view(window,cursor=(460,220))
     window.on_big_map(view,None,actions)
     assert window.project==before and window.worker.map_action
-    assert '保持十字位置' in window.big_status.text()
+    assert 'Не сдвигайте перекрестие' in window.big_status.text()
 
 
 @pytest.mark.parametrize('invalid',['age','session','map','region','foreground','mini'])
@@ -90,7 +90,7 @@ def test_input_works_before_any_fix_and_invalid_input_preserves_trip(window):
     assert format_coordinates(game) in window.destination_label.text()
     before=deepcopy(window.project)
     window.coordinate_input.setText('x0, y0');window.apply_coordinates()
-    assert window.project==before and '超出' in window.coordinate_feedback.text()
+    assert window.project==before and 'за пределами' in window.coordinate_feedback.text()
 
 
 def test_native_reader_does_not_start_for_blank_or_without_crosshair():

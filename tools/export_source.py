@@ -6,7 +6,7 @@ from zipfile import ZipFile,ZIP_DEFLATED
 
 ROOT=Path(__file__).resolve().parents[1]
 TOP=['.gitignore','.gitattributes','LICENSE','NOTICE','README.md','CONTRIBUTING.md',
-     'THIRD_PARTY_NOTICES.md','requirements.txt','build.ps1','main.py','启动导航.cmd']
+     'THIRD_PARTY_NOTICES.md','requirements.txt','build.ps1','main.py','Запуск.cmd']
 TOOLS=['copy_licenses.py','export_source.py','build_frozen.py','make_default_voice_pack.py','make_diagnostic_sample.py',
        'fetch_clean_map.py','prepare_clean_map.py','extract_roads.py','build_map_features.py',
        'publish_map_assets.py','prepare_extra_maps.py','extract_extra_roads.py']
@@ -42,20 +42,20 @@ def main():
     args=parser.parse_args()
     destination=(ROOT/args.output).resolve()
     if not destination.is_relative_to((ROOT/'dist').resolve()):
-        parser.error('输出目录必须位于项目 dist 内')
+        parser.error('Каталог вывода должен быть внутри dist проекта')
     archive=destination.with_name(destination.name+'-source.zip')
     if destination.exists() or archive.exists():
-        parser.error('输出已存在；请选择新的 --output 目录，避免覆盖已有文件或 Git 历史')
+        parser.error('Вывод уже существует; укажите новый каталог --output, чтобы не перезаписать файлы или историю Git')
     paths=public_files()
     for path in paths:
-        if not (ROOT/path).is_file():parser.error(f'缺少公开文件：{path}')
+        if not (ROOT/path).is_file():parser.error(f'Нет публичного файла: {path}')
     destination.mkdir(parents=True)
     for path in paths:
         target=destination/path;target.parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(ROOT/path,target)
     with ZipFile(archive,'x',compression=ZIP_DEFLATED,compresslevel=6) as output:
         for path in paths:output.write(destination/path,(Path(destination.name)/path).as_posix())
-    print(f'公开源码：{destination}\n源码压缩包：{archive}\n文件数：{len(paths)}')
+    print(f'Публичный исходный код: {destination}\nАрхив исходников: {archive}\nФайлов: {len(paths)}')
 
 
 if __name__=='__main__':main()

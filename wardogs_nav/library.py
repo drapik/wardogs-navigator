@@ -32,7 +32,7 @@ def snap_saved(roads,saved,policy,avoid=(),max_snap=80.):
         import cv2,numpy as np
         guides=cv2.approxPolyDP(np.float32(controls),2.,False)[:,0].tolist()
     try:route=plan(roads,guides,policy['allowed'],policy['confirmed_only'],avoid,max_snap=max_snap,preferences=policy.get('preferences'))
-    except RouteError as error:raise RouteError('无法贴合道路：'+str(error)) from error
+    except RouteError as error:raise RouteError('Не удалось привязать к дорогам: '+str(error)) from error
     result=deepcopy(saved)
     result.update(points=[list(p) for p in route.points],kinds=list(route.kinds),
                   control_points=deepcopy(guides),snap_to_roads=True,build_roads=False,**route_metadata(route))
@@ -96,8 +96,8 @@ def supplement_roads(roads, saved):
                 if project(run[i],simple[-1],run[i+1])[0]>.02:simple.append(run[i])
             simple.append(run[-1])
             for i in range(0,len(simple)-1,1999):
-                road=dict(id=uid(),name=f"收藏补路 · {saved['name']}",kind=run_kind,
-                          confirmed=True,points=simple[i:i+2000],note='由完整收藏路径补入')
+                road=dict(id=uid(),name=f"Дорога из избранного · {saved['name']}",kind=run_kind,
+                          confirmed=True,points=simple[i:i+2000],note='Добавлено из полного пути избранного маршрута')
                 if run_bridge:
                     road.update(bridge=True,bridge_start=any(distance(road['points'][0],p)<1.5 for p in ports),
                                 bridge_end=any(distance(road['points'][-1],p)<1.5 for p in ports))
@@ -136,13 +136,13 @@ def slice_route(route, start, end):
 
 def join_routes(parts):
     parts=[p for p in parts if len(p.points)>1 and p.length>1e-6]
-    if not parts:raise RouteError('起终点太近，请选择更远的路径')
+    if not parts:raise RouteError('Начало и конец слишком близко, выберите путь длиннее')
     points=list(parts[0].points);kinds=list(parts[0].kinds);ids=list(parts[0].road_ids)
     bridges=list(parts[0].bridges or [False]*len(parts[0].kinds));ports=deepcopy(parts[0].bridge_connections)
     junctions=list(parts[0].junctions);length=parts[0].length
     for part in parts[1:]:
         if distance(points[-1],part.points[0])>1.6:
-            raise RouteError('收藏路线连接处不连续，请补画连接道路')
+            raise RouteError('Избранный маршрут разорван на стыке, дорисуйте соединяющую дорогу')
         # Graph nodes may be merged within 1.5 px; retain the exact shared join.
         points.extend(part.points[1:]);kinds.extend(part.kinds);ids.extend(part.road_ids)
         bridges.extend(part.bridges or [False]*len(part.kinds));ports.extend(deepcopy(part.bridge_connections))
@@ -160,16 +160,16 @@ def follow_saved(roads, saved, policy, avoid=(), start=None, reverse=False, mini
         supplement_roads(roads,saved)
     points,kinds,bridges,ids=sampled(saved)
     if reverse:points.reverse();kinds.reverse();bridges.reverse();ids.reverse()
-    if len(points)<2:raise RouteError('收藏路线长度不足')
+    if len(points)<2:raise RouteError('Избранный маршрут слишком короткий')
     index=RoadIndex(roads);owners=[]
     ports=[p for road in roads for p in bridge_ports(road)]
     for a,b,kind,bridge,road_id in zip(points,points[1:],kinds,bridges,ids):
         road=index.covering(a,b,kind,bridge,road_id)
-        if road is None:raise RouteError('收藏路径有缺路，请重新载入收藏以补路')
+        if road is None:raise RouteError('В избранном маршруте не хватает дорог, загрузите избранное заново, чтобы их достроить')
         if not usable(road,policy['allowed'],policy['confirmed_only']):
-            raise RouteError(f"收藏经过未允许的路段：{KINDS[road['kind']]}。请调整规则或编辑收藏")
+            raise RouteError(f"Избранный маршрут идёт по запрещённому участку: {KINDS[road['kind']]}. Измените правила или отредактируйте избранное")
         if owners and not roads_connect(owners[-1],road,a,ports):
-            raise RouteError('收藏在桥面与地面交叉处换层，不能直接转弯；请经真实桥头重新规划收藏')
+            raise RouteError('Избранный маршрут переходит между мостом и землёй на пересечении, так повернуть нельзя; перестройте его через реальный въезд на мост')
         owners.append(road)
     route=Route(points,[r['kind'] for r in owners],[r['id'] for r in owners],
                 cumulative(points)[-1],[0,0],0,bridges=[bool(r.get('bridge')) for r in owners],
@@ -180,14 +180,14 @@ def follow_saved(roads, saved, policy, avoid=(), start=None, reverse=False, mini
     connector=None
     if start is not None:
         projection=nearest_on_route(start,route.points,minimum_progress)
-        if projection is None:raise RouteError('无法接入收藏路线')
+        if projection is None:raise RouteError('Не удалось выехать на избранный маршрут')
         gap,s,segment,q=projection
         if gap>1.5:
             connector=plan(roads,[start,q],policy['allowed'],policy['confirmed_only'],avoid,preferences=policy.get('preferences'),anchor_roads=[None,route.road_ids[segment]])
         route=slice_route(route,s,route.length)
-        if route.length<1:raise RouteError('已在收藏路线终点附近；可反向载入')
+        if route.length<1:raise RouteError('Вы уже у конца избранного маршрута; можно загрузить его в обратном направлении')
     if any(blocked(p,p,z) for p in (route.points[0],route.points[-1]) for z in avoid):
-        raise RouteError('收藏起终点位于危险区内，请调整危险区或收藏')
+        raise RouteError('Начало или конец избранного маршрута в опасной зоне; измените зону или маршрут')
     lengths=cumulative(route.points)
     bad=[i for i,(a,b) in enumerate(zip(route.points,route.points[1:])) if any(blocked(a,b,z) for z in avoid)]
     if bad:
@@ -213,13 +213,13 @@ def follow_saved(roads, saved, policy, avoid=(), start=None, reverse=False, mini
                                 policy['allowed'],policy['confirmed_only'],avoid,max_snap=2.,preferences=policy.get('preferences'),anchor_roads=hints)
                     break
                 except RouteError:continue
-            if detour is None:raise RouteError('危险区截断了收藏路径，附近没有符合规则的绕行道路')
+            if detour is None:raise RouteError('Опасная зона перекрывает избранный маршрут, а подходящей объездной дороги рядом нет')
             parts.extend([slice_route(route,cursor,a),detour]);cursor=b
         parts.append(slice_route(route,cursor,route.length));route=join_routes(parts)
     if connector:route=join_routes([connector,route])
     route.junctions=junctions_on_route(nodes,adj,route)
     if any(blocked(a,b,z) for a,b in zip(route.points,route.points[1:]) for z in avoid):
-        raise RouteError('收藏路径仍与危险区相交，请调整危险区或补画绕行道路')
+        raise RouteError('Избранный маршрут всё ещё пересекает опасную зону; измените зону или дорисуйте объездную дорогу')
     route.unconfirmed=0
     return route
 
@@ -249,14 +249,14 @@ def library_payload(project_data, kind):
                                  road_ids=[resolved.road_ids[i] for i in keep[:-1]],
                                  bridges=[resolved.bridges[i] for i in keep[:-1]],
                                  bridge_connections=deepcopy(resolved.bridge_connections))
-    else:raise ValueError('未知资料库类型')
+    else:raise ValueError('Неизвестный тип библиотеки')
     return validate_project(payload)
 
 
 def check_library_target(current,incoming,kind):
     if incoming['map']!=current['map']:
-        raise ValueError(f"资料库属于 {incoming['map'].upper()}，请先切换到对应地图再导入")
-    if incoming.get('library',kind)!=kind:raise ValueError('文件类型不符，请使用对应的道路或收藏导入按钮')
+        raise ValueError(f"Библиотека относится к карте {incoming['map'].upper()}; сначала переключитесь на неё, затем импортируйте")
+    if incoming.get('library',kind)!=kind:raise ValueError('Неподходящий тип файла; используйте соответствующую кнопку импорта дорог или избранного')
 
 
 def merge_library(current, incoming, kind, *, snap_to_roads=None, build_roads=None):

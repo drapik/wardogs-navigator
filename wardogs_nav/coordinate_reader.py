@@ -92,7 +92,7 @@ class CoordinateReader:
             lines = bridge.call('recognize',timeout=2.5,path=str(path))['lines']
             self.error = ''
         except (OSError, ValueError, RuntimeError) as error:
-            self.error = str(error).replace('语音','文字识别')
+            self.error = 'Распознавание текста: '+str(error)
             with self.lock:
                 if self.bridge:self.bridge.close();self.bridge = None
             self.retry_at = time.monotonic()+30
