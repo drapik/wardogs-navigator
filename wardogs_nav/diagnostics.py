@@ -72,7 +72,7 @@ def run_selftest(output):
         report['checks']['gui']=True
         window.worker.capture=True;window.on_fix(fix,sample,True)
         window.start_recording()
-        report['checks']['recording_hud_active']=window.hud.data['text']=='Запись маршрута'
+        report['checks']['recording_hud_active']=window.hud.data.get('activity')=='Идёт запись маршрута'
         window.hud.grab().save(str(output.with_name(output.stem+'-recording-hud.png')))
         window.finish_recording()
         report['checks']['recording_hud_finished']='Запись' in window.hud.data['text']
@@ -155,8 +155,6 @@ def run_selftest(output):
         report['checks']['recorded_crossing_split']=(count==2 and plan(recorded,[[100,300],[300,500]],['major','offroad']).length==400)
         crossing=plan(recorded,[[100,300],[500,300]],['major','offroad'])
         report['checks']['offroad_crossing_prompt']=any('съезд на бездорожье' in cue_text(c,'normal').lower() for c in cues_for(crossing,[],'normal'))
-        from wardogs_audio.pack import DefaultVoicePack
-        report['checks']['offroad_local_audio']=bool(DefaultVoicePack().segments('Через 100 метров налево, съезд на бездорожье'))
         recorder=RoadRecorder()
         for pass_index,xs in enumerate((range(10,121,5),range(120,9,-5),range(10,121,5))):
             for i,x in enumerate(xs):recorder.feed([x,100],pass_index*100+i*.5,True)
@@ -238,8 +236,6 @@ def run_selftest(output):
       try:
         if window:
             report['voices']=[v['name'] for v in window.voices]
-            from wardogs_audio.pack import DefaultVoicePack
-            report['checks']['default_voice_pack_available']=bool(DefaultVoicePack().segments('Через 100 метров поверните направо'))
             window.hud.set_data({'state':'navigating','text':'Поверните направо','distance':120,'remaining':2800},'normal')
             window.hud.show();app.processEvents()
             window.hud.grab().save(str(output.with_name(output.stem+'-hud.png')))
@@ -311,10 +307,10 @@ def run_selftest(output):
             report['hotkey_status']=statuses
             window.grab().save(str(output.with_name(output.stem+'-cleared.png')))
             window.navigator.stop();window.watchdog.stop()
-            # Use the shared queue and real player with bundled audio, including
-            # on machines where Windows speech is absent. Output remains muted.
+            # Use the shared queue and real player with the configured voice
+            # (SpeechKit when a key is set, otherwise Windows). Output remains muted.
             window.tts.stop();window.settings['voice']=True
-            window.settings['voice_backend']='local';window.settings['voice_rate']=.5
+            window.settings['voice_backend']='auto';window.settings['voice_rate']=.5
             window.tts.volume=0
             report['queue_started']=[];report['checks']['native_speech_queue']=False
             def started(id):report['queue_started'].append(id)
