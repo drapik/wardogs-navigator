@@ -72,7 +72,7 @@ def run_selftest(output):
         report['checks']['gui']=True
         window.worker.capture=True;window.on_fix(fix,sample,True)
         window.start_recording()
-        report['checks']['recording_hud_active']=window.hud.data.get('activity')=='Идёт запись маршрута'
+        report['checks']['recording_hud_active']=window.hud.data['text']=='Идёт запись маршрута'
         window.hud.grab().save(str(output.with_name(output.stem+'-recording-hud.png')))
         window.finish_recording()
         report['checks']['recording_hud_finished']='Запись' in window.hud.data['text']
